@@ -18,11 +18,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="uploads\" />
+    <ProjectReference Include="..\DirectorioDeArchivos.Shared\DirectorioDeArchivos.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DirectorioDeArchivos.Shared\DirectorioDeArchivos.Shared.csproj" />
+    <Folder Include="uploads\" />
   </ItemGroup>
 
 </Project>
