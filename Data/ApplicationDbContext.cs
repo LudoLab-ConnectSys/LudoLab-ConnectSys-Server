@@ -12,5 +12,13 @@ namespace LudoLab_ConnectSys_Server.Data
 
         }
         public DbSet<UploadResult> UploadResults => Set<UploadResult>();
+        public DbSet<Certificado> Certificado { get; set; }
+        public DbSet<Curso> Curso { get; set; }
+        public DbSet<Periodo> Periodo { get; set; }
+        public DbSet<PeriodoConNombreCurso> PeriodoConNombreCurso { get; set; }
+        public DbSet<Usuario> Usuario { get; set; }
+        public DbSet<Estudiante> Estudiante { get; set; }
+        public DbSet<Grupo> Grupo { get; set; }
+        public DbSet<UsuarioPeriodo> UsuarioPeriodo { get; set; }
     }
 }
