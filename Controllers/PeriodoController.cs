@@ -31,7 +31,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
                             nombre_periodo = p.nombre_periodo,
                             fecha_inicio_periodo = p.fecha_inicio_periodo,
                             fecha_fin_periodo = p.fecha_fin_periodo,
-                            horas = p.horas,
+                            duracion_periodo_horas = p.duracion_periodo_horas,
                             nombre_curso = c.nombre_curso,
                             nombre_certificado = cert.nombre_certificado
                         };
@@ -126,7 +126,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
                             nombre_periodo = p.nombre_periodo,
                             fecha_inicio_periodo = p.fecha_inicio_periodo,
                             fecha_fin_periodo = p.fecha_fin_periodo,
-                            horas = p.horas,
+                            duracion_periodo_horas = p.duracion_periodo_horas,
                             nombre_curso = c.nombre_curso,
                             nombre_certificado = cert.nombre_certificado
                         };
