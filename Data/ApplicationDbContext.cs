@@ -19,6 +19,10 @@ namespace LudoLab_ConnectSys_Server.Data
         public DbSet<Usuario> Usuario { get; set; }
         public DbSet<Estudiante> Estudiante { get; set; }
         public DbSet<Grupo> Grupo { get; set; }
+        public DbSet<Instructor> Instructor { get; set; }
+        public DbSet<Modalidad> Modalidad { get; set; }
+        public DbSet<ListaPeriodo> ListaPeriodo { get; set; }
+
         public DbSet<UsuarioPeriodo> UsuarioPeriodo { get; set; }
     }
 }
