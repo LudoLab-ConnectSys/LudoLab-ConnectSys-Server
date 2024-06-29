@@ -171,10 +171,6 @@ namespace LudoLab_ConnectSys_Server.Controllers
         [Route("ActualizarNombreArchivo")]//actualizar nombre de archvo en tabla certificado
         public async Task<IActionResult> ActualizarNombreArchivo([FromBody] ActualizacionNombreArchivoModel model)
         {
-            // Aquí realizas la lógica para actualizar el nombre del archivo en la base de datos
-            // Puedes utilizar el ID del período y el nuevo nombre del archivo que recibes en el modelo
-
-            // Por ejemplo:
             var certificado = await _context.Certificado.FirstOrDefaultAsync(c => c.id_periodo == model.IdPeriodo);
             if (certificado != null)
             {

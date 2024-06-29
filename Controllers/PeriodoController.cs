@@ -23,12 +23,13 @@ namespace LudoLab_ConnectSys_Server.Controllers
         public async Task<ActionResult<List<PeriodoConNombreCurso>>> GetPeriodo()
         {
             var query = from p in _context.Periodo
+                        join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo
                         join c in _context.Curso on p.id_curso equals c.id_curso
                         join cert in _context.Certificado on p.id_periodo equals cert.id_periodo
                         select new PeriodoConNombreCurso
                         {
                             id_periodo = p.id_periodo,
-                            nombre_periodo = p.nombre_periodo,
+                            nombre_periodo = lp.nombre_periodo,
                             fecha_inicio_periodo = p.fecha_inicio_periodo,
                             fecha_fin_periodo = p.fecha_fin_periodo,
                             duracion_periodo_horas = p.duracion_periodo_horas,
@@ -73,7 +74,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(await GetDbPeriodo());
         }
 
-        [HttpPut("{id_periodo}")]
+        /*[HttpPut("{id_periodo}")]
         public async Task<ActionResult<List<Periodo>>> UpdatePeriodo(Periodo objeto)
         {
 
@@ -88,7 +89,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(await _context.Periodo.ToListAsync());
 
 
-        }
+        }*/
 
 
         [HttpDelete]
@@ -115,15 +116,18 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
         [HttpGet]
         [Route("PeriodoByName")]
-        public async Task<ActionResult<List<PeriodoConNombreCurso>>> GetSinglePeriodo([FromQuery] string nombre_periodo = null, [FromQuery] string nombre_curso = null)
+        public async Task<ActionResult<List<PeriodoConNombreCurso>>> GetSinglePeriodo([FromQuery] int id_lista_periodo, [FromQuery] string nombre_curso = null)
         {
+            Console.WriteLine($"ID Lista Periodo: {id_lista_periodo}, Nombre Curso: {nombre_curso}");
             var query = from p in _context.Periodo
+                        join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo
                         join c in _context.Curso on p.id_curso equals c.id_curso
                         join cert in _context.Certificado on p.id_periodo equals cert.id_periodo
                         select new PeriodoConNombreCurso
                         {
                             id_periodo = p.id_periodo,
-                            nombre_periodo = p.nombre_periodo,
+                            id_ListaPeriodo = p.id_ListaPeriodo,
+                            nombre_periodo = lp.nombre_periodo,
                             fecha_inicio_periodo = p.fecha_inicio_periodo,
                             fecha_fin_periodo = p.fecha_fin_periodo,
                             duracion_periodo_horas = p.duracion_periodo_horas,
@@ -131,12 +135,14 @@ namespace LudoLab_ConnectSys_Server.Controllers
                             nombre_certificado = cert.nombre_certificado
                         };
 
-            // Aplicar filtros si se proporcionan
-            if (!string.IsNullOrEmpty(nombre_periodo))
+
+            // Aplicar filtro por id_lista_periodo si es mayor que cero
+            if (id_lista_periodo > 0)
             {
-                query = query.Where(p => p.nombre_periodo.Contains(nombre_periodo));
+                query = query.Where(p => p.id_ListaPeriodo == id_lista_periodo);
             }
 
+            // Aplicar filtro por nombre_curso si se proporciona
             if (!string.IsNullOrEmpty(nombre_curso))
             {
                 query = query.Where(p => p.nombre_curso.Contains(nombre_curso));
@@ -152,5 +158,13 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(lista);
         }
 
+
+        [HttpGet]
+        [Route("getNamePeriodoList")]
+        public async Task<ActionResult<List<ListaPeriodo>>> GetListaPeriodos()
+        {
+            var listaPeriodos = await _context.ListaPeriodo.ToListAsync();
+            return Ok(listaPeriodos);
+        }
     }
 }
