@@ -51,20 +51,6 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(lista);
         }
 
-
-        [HttpGet]
-        [Route("{id_periodo}")]
-        public async Task<ActionResult<List<Periodo>>> GetSinglePeriodo(int id_periodo)
-        {
-            var miobjeto = await _context.Periodo.FirstOrDefaultAsync(ob => ob.id_periodo == id_periodo);
-            if (miobjeto == null)
-            {
-                return NotFound(" :/");
-            }
-
-            return Ok(miobjeto);
-        }
-
         [HttpPost]
         public async Task<ActionResult<Periodo>> CreatePeriodo(Periodo objeto)
         {
@@ -132,14 +118,6 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return periodos;
         }
 
-        [HttpPost]
-        public async Task<ActionResult<Periodo>> CreatePeriodo(Periodo periodo)
-        {
-            _context.Periodo.Add(periodo);
-            await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetPeriodo), new { id_periodo = periodo.id_periodo }, periodo);
-        }
-
         [HttpPut("{id_periodo}")]
         public async Task<IActionResult> UpdatePeriodo(int id_periodo, Periodo periodo)
         {
@@ -169,24 +147,13 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return NoContent();
         }
 
-        [HttpDelete("{id_periodo}")]
-        public async Task<IActionResult> DeletePeriodo(int id_periodo)
-        {
-            var periodo = await _context.Periodo.FindAsync(id_periodo);
-            if (periodo == null)
-            {
-                return NotFound();
-            }
 
-            _context.Periodo.Remove(periodo);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
 
         private bool PeriodoExists(int id_periodo)
         {
             return _context.Periodo.Any(e => e.id_periodo == id_periodo);
+        }
+
         [HttpGet]
         [Route("PeriodoByName")]
         public async Task<ActionResult<List<PeriodoConNombreCurso>>> GetSinglePeriodo([FromQuery] int id_lista_periodo, [FromQuery] string nombre_curso = null)
