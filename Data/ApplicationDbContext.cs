@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using DirectorioDeArchivos.Shared;
 using System.Collections.Generic;
+using LudoLab_ConnectSys_Server.Controllers;
 
 namespace LudoLab_ConnectSys_Server.Data
 {
@@ -25,5 +26,11 @@ namespace LudoLab_ConnectSys_Server.Data
         public DbSet<ListaPeriodo> ListaPeriodo { get; set; }
         public DbSet<UsuarioPeriodo> UsuarioPeriodo { get; set; }
         public DbSet<InstructorPeriodo> InstructorPeriodo { get; set; }
+        public DbSet<GrupoDto> GrupoDto { get; set; }
+        public DbSet<InstructorDto> InstructorDto { get; set; }
+        public DbSet<Encuesta> Encuesta { get; set; }//para las encuestas
+        public DbSet<Pregunta> Pregunta { get; set; }
+        public DbSet<Respuesta> Respuesta { get; set; }
+        public DbSet<Horario> Horario { get; set; }//para los horarios
     }
 }

@@ -99,5 +99,67 @@ namespace LudoLab_ConnectSys_Server.Controllers
         {
             return _context.Instructor.Any(e => e.id_instructor == id_instructor);
         }
+
+        [HttpGet("instructoresPracticas")]
+        public async Task<ActionResult<IEnumerable<InstructorDto>>> GetInstructoresPracticas(int pageIndex, int pageSize)
+        {
+            var instructoresQuery = (
+                from instructor in _context.Instructor
+                join usuario in _context.Usuario on instructor.id_usuario equals usuario.id_usuario
+                select new InstructorDto
+                {
+                    IdInstructor = instructor.id_instructor,
+                    CedulaUsuario = usuario.cedula_usuario ?? string.Empty,
+                    NombreUsuario = usuario.nombre_usuario ?? string.Empty,
+                    ApellidosUsuario = usuario.apellidos_usuario ?? string.Empty,
+                    EdadUsuario = usuario.edad_usuario,
+                    CorreoUsuario = usuario.correo_usuario ?? string.Empty,
+                    CelularUsuario = usuario.celular_usuario ?? string.Empty,
+                    TelefonoUsuario = usuario.telefono_usuario ?? string.Empty,
+                    Grupos = (
+                        from grupo in _context.Grupo
+                        where grupo.id_instructor == instructor.id_instructor
+                        select new GrupoDto
+                        {
+                            IdGrupo = grupo.id_grupo,
+                            IdPeriodo = grupo.id_periodo,
+                            NombreGrupo = grupo.nombre_grupo ?? string.Empty,
+                            Horarios = _context.Horario
+                                        .Where(h => h.id_grupo == grupo.id_grupo)
+                                        .Select(h => new Horario
+                                        {
+                                            id_horario = h.id_horario,
+                                            id_grupo = h.id_grupo,
+                                            dia_semana = h.dia_semana ?? string.Empty,
+                                            hora_inicio = h.hora_inicio,
+                                            hora_fin = h.hora_fin
+                                        })
+                                        .ToList(),
+                        }
+                    ).ToList(),
+                    TotalHorasGanadas = _context.Horas_instructor
+                                            .Where(h => h.id_instructor == instructor.id_instructor)
+                                            .Sum(h => (int?)h.horas_ganadas_instructor) ?? 0
+                }
+            );
+
+            var totalInstructores = await instructoresQuery.CountAsync();
+
+            var instructoresPaginados = await instructoresQuery
+                .Skip((pageIndex - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var response = new InstructoresPaginadosDto
+            {
+                Instructores = instructoresPaginados,
+                TotalCount = totalInstructores
+            };
+
+            return Ok(response);
+        }
+
+
     }
+
 }
