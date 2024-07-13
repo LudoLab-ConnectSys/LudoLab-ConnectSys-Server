@@ -99,5 +99,18 @@ namespace LudoLab_ConnectSys_Server.Controllers
         {
             return _context.Usuario.Any(e => e.id_usuario == id_usuario);
         }
+
+        [HttpGet("Instructores")]
+        public async Task<ActionResult<List<Usuario>>> GetInstructores()
+        {
+            var instructores = await _context.Usuario
+                .Join(_context.Instructor,
+                    u => u.id_usuario,
+                    i => i.id_usuario,
+                    (u, i) => u)
+                .ToListAsync();
+
+            return Ok(instructores);
+        }
     }
 }

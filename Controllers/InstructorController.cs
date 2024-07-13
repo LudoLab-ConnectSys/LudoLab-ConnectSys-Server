@@ -4,6 +4,8 @@ using DirectorioDeArchivos.Shared;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using LudoLab_ConnectSys_Server.Data;
+using System.Security.Claims;
+using Microsoft.Data.SqlClient;
 
 namespace LudoLab_ConnectSys_Server.Controllers
 {
@@ -49,51 +51,205 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return CreatedAtAction("GetInstructor", new { id_instructor = instructor.id_instructor }, instructor);
         }
 
-        // PUT: api/Instructor/{id_instructor}
         [HttpPut("{id_instructor}")]
-        public async Task<IActionResult> PutInstructor(int id_instructor, Instructor instructor)
+        public async Task<IActionResult> UpdateInstructor(int id_instructor, [FromBody] InstructorUpdateModel model)
         {
-            if (id_instructor != instructor.id_instructor)
+            if (id_instructor != model.id_instructor)
             {
                 return BadRequest();
             }
 
-            _context.Entry(instructor).State = EntityState.Modified;
+            var parameterId = new SqlParameter("@id_instructor", id_instructor);
+            var parameterNombre = new SqlParameter("@nombre_usuario", model.nombre_usuario);
+            var parameterApellidos = new SqlParameter("@apellidos_usuario", model.apellidos_usuario);
+            var parameterCedula = new SqlParameter("@cedula_usuario", model.cedula_usuario);
+            var parameterEdad = new SqlParameter("@edad_usuario", model.edad_usuario);
+            var parameterCorreo = new SqlParameter("@correo_usuario", model.correo_usuario);
+            var parameterCelular = new SqlParameter("@celular_usuario", model.celular_usuario);
+            var parameterTelefono = new SqlParameter("@telefono_usuario", model.telefono_usuario);
 
             try
             {
-                await _context.SaveChangesAsync();
+                await _context.Database.ExecuteSqlRawAsync(
+                    "EXEC sp_ActualizarInstructor @id_instructor, @nombre_usuario, @apellidos_usuario, @cedula_usuario, @edad_usuario, @correo_usuario, @celular_usuario, @telefono_usuario",
+                    parameterId, parameterNombre, parameterApellidos, parameterCedula, parameterEdad, parameterCorreo, parameterCelular, parameterTelefono);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (Exception ex)
             {
-                if (!InstructorExists(id_instructor))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
             }
 
             return NoContent();
         }
 
-        // DELETE: api/Instructor/{id_instructor}
         [HttpDelete("{id_instructor}")]
         public async Task<IActionResult> DeleteInstructor(int id_instructor)
         {
-            var instructor = await _context.Instructor.FindAsync(id_instructor);
+            try
+            {
+                await _context.Database.ExecuteSqlRawAsync("EXEC sp_EliminarInstructor @id_instructor", new SqlParameter("@id_instructor", id_instructor));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+            }
+
+            return NoContent();
+        }
+
+
+        [HttpGet("Detalles")]
+        public async Task<ActionResult<IEnumerable<InstructorConDetalles>>> GetInstructoresConDetalles()
+        {
+            var instructores = await _context.Instructor
+                .Join(_context.Usuario, i => i.id_usuario, u => u.id_usuario, (i, u) => new { i, u })
+                .GroupBy(x => new { x.i.id_instructor, x.u.nombre_usuario, x.u.apellidos_usuario, x.u.correo_usuario })
+                .Select(group => new InstructorConDetalles
+                {
+                    id_instructor = group.Key.id_instructor,
+                    nombre_usuario = group.Key.nombre_usuario,
+                    apellidos_usuario = group.Key.apellidos_usuario,
+                    correo_usuario = group.Key.correo_usuario,
+                    cursos = _context.RegistroInstructor
+                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                .Join(_context.Curso, ri => ri.id_curso, c => c.id_curso, (ri, c) => c.nombre_curso)
+                                .ToList(),
+                    periodos = _context.RegistroInstructor
+                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                .Join(_context.Periodo, ri => ri.id_periodo, p => p.id_periodo, (ri, p) => _context.ListaPeriodo
+                                        .Where(lp => lp.id_lista_periodo == p.id_ListaPeriodo)
+                                        .Select(lp => lp.nombre_periodo)
+                                        .FirstOrDefault())
+                                .ToList(),
+                    id_cursos = _context.RegistroInstructor
+                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                .Select(ri => ri.id_curso)
+                                .ToList(),
+                    id_periodos = _context.RegistroInstructor
+                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                .Select(ri => ri.id_periodo)
+                                .ToList()
+                })
+                .ToListAsync();
+
+            return Ok(instructores);
+        }
+
+
+        [HttpGet("sin-grupo/{id_curso}/{id_periodo}")]
+        public async Task<ActionResult<IEnumerable<InstructorConDetalles>>> GetInstructoresSinGrupo(int id_curso, int id_periodo)
+        {
+            var instructoresSinGrupo = await _context.RegistroInstructor
+                .Where(ri => ri.id_curso == id_curso && ri.id_periodo == id_periodo)
+                .Join(_context.Instructor, ri => ri.id_instructor, i => i.id_instructor, (ri, i) => i)
+                .Where(i => !_context.Grupo.Any(g => g.id_instructor == i.id_instructor && g.id_periodo == id_periodo))
+                .Join(_context.Usuario, i => i.id_usuario, u => u.id_usuario, (i, u) => new { i, u })
+                .Select(iu => new InstructorConDetalles
+                {
+                    id_instructor = iu.i.id_instructor,
+                    nombre_usuario = iu.u.nombre_usuario,
+                    horariosPreferentes = _context.HorarioPreferenteInstructor
+                        .Where(h => h.id_instructor == iu.i.id_instructor)
+                        .Select(h => new HorarioPreferenteInstructor
+                        {
+                            dia_semana = h.dia_semana,
+                            hora_inicio = h.hora_inicio,
+                            hora_fin = h.hora_fin
+                        }).ToList()
+                }).ToListAsync();
+
+            return Ok(instructoresSinGrupo);
+        }
+
+        [HttpGet("todos")]
+        public async Task<ActionResult<IEnumerable<InstructorConDetalles>>> GetTodosInstructores()
+        {
+            var instructores = await (from instructor in _context.Instructor
+                                      join usuario in _context.Usuario on instructor.id_usuario equals usuario.id_usuario
+                                      select new InstructorConDetalles
+                                      {
+                                          id_instructor = instructor.id_instructor,
+                                          nombre_usuario = usuario.nombre_usuario + " " + usuario.apellidos_usuario
+                                      }).ToListAsync();
+
+            return Ok(instructores);
+        }
+
+        [HttpPost("RegistrarHorarios")]
+        public async Task<IActionResult> RegistrarHorarios(HorariosInstructor model)
+        {
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userIdString == null)
+            {
+                return Unauthorized();
+            }
+
+            if (!int.TryParse(userIdString, out int userId))
+            {
+                return BadRequest("Invalid user ID");
+            }
+
+            var instructor = await _context.Instructor.SingleOrDefaultAsync(i => i.id_usuario == userId);
+            if (instructor == null)
+            {
+                return NotFound("Instructor no encontrado");
+            }
+
+            foreach (var horario in model.Horarios)
+            {
+                _context.HorarioPreferenteInstructor.Add(new HorarioPreferenteInstructor
+                {
+                    id_instructor = instructor.id_instructor,
+                    dia_semana = horario.dia_semana,
+                    hora_inicio = horario.hora_inicio,
+                    hora_fin = horario.hora_fin
+                });
+            }
+
+            // Register instructor for the course and period
+            _context.RegistroInstructor.Add(new RegistroInstructor
+            {
+                id_instructor = instructor.id_instructor,
+                id_curso = model.CursoId,
+                id_periodo = model.PeriodoId
+            });
+
+            await _context.SaveChangesAsync();
+
+            return Ok();
+        }
+
+        [HttpGet("DetallesById/{id_instructor}")]
+        public async Task<ActionResult<InstructorConDetallesCompleto>> GetInstructorDetallesById(int id_instructor)
+        {
+            var instructor = await _context.Instructor
+                .Where(i => i.id_instructor == id_instructor)
+                .Join(_context.Usuario, i => i.id_usuario, u => u.id_usuario, (i, u) => new { i, u })
+                .Select(iu => new InstructorConDetallesCompleto
+                {
+                    id_instructor = iu.i.id_instructor,
+                    nombre_usuario = iu.u.nombre_usuario,
+                    apellidos_usuario = iu.u.apellidos_usuario,
+                    cedula_usuario = iu.u.cedula_usuario,
+                    correo_usuario = iu.u.correo_usuario,
+                    celular_usuario = iu.u.celular_usuario,
+                    telefono_usuario = iu.u.telefono_usuario,
+                    id_cursos = new List<int>(), // Agrega el mapeo de id_cursos si es necesario
+                    id_periodos = new List<int>(), // Agrega el mapeo de id_periodos si es necesario
+                    cursos = new List<string>(), // Agrega el mapeo de cursos si es necesario
+                    periodos = new List<string>(), // Agrega el mapeo de periodos si es necesario
+                    horariosPreferentes = new List<HorarioPreferenteInstructor>() // Agrega el mapeo de horarios si es necesario
+                })
+                .FirstOrDefaultAsync();
+
             if (instructor == null)
             {
                 return NotFound();
             }
 
-            _context.Instructor.Remove(instructor);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            return Ok(instructor);
         }
+
 
         private bool InstructorExists(int id_instructor)
         {

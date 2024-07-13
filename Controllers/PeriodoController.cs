@@ -111,11 +111,48 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return periodo;
         }
 
-        [HttpGet("Curso/{id_curso}")]
-        public async Task<ActionResult<List<Periodo>>> GetPeriodosByCurso(int id_curso)
+        [HttpGet("detalles/{id_periodo}")]
+        public async Task<ActionResult<PeriodoConDetalles>> GetPeriodoDetalles(int id_periodo)
         {
-            var periodos = await _context.Periodo.Where(p => p.id_curso == id_curso).ToListAsync();
-            return periodos;
+            var periodo = await _context.Periodo
+                .Where(p => p.id_periodo == id_periodo)
+                .Select(p => new PeriodoConDetalles
+                {
+                    id_periodo = p.id_periodo,
+                    id_curso = p.id_curso,
+                    nombre_periodo = (from lp in _context.ListaPeriodo where lp.id_lista_periodo == p.id_ListaPeriodo select lp.nombre_periodo).FirstOrDefault()
+                })
+                .FirstOrDefaultAsync();
+
+            if (periodo == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(periodo);
+        }
+
+        [HttpGet("Curso/{id_curso}")]
+        public async Task<ActionResult<List<PeriodoConNombreCurso>>> GetPeriodosByCurso(int id_curso)
+        {
+            var query = from p in _context.Periodo
+                        join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo
+                        where p.id_curso == id_curso
+                        select new PeriodoConNombreCurso
+                        {
+                            id_periodo = p.id_periodo,
+                            nombre_periodo = lp.nombre_periodo,
+                            fecha_inicio_periodo = p.fecha_inicio_periodo,
+                            fecha_fin_periodo = p.fecha_fin_periodo,
+                            duracion_periodo_horas = p.duracion_periodo_horas,
+                            id_ListaPeriodo = p.id_ListaPeriodo,
+                            nombre_curso = (from c in _context.Curso where c.id_curso == p.id_curso select c.nombre_curso).FirstOrDefault(),
+                            nombre_certificado = (from cert in _context.Certificado where cert.id_periodo == p.id_periodo select cert.nombre_certificado).FirstOrDefault()
+                        };
+
+            var lista = await query.ToListAsync();
+
+            return Ok(lista);
         }
 
         [HttpPut("{id_periodo}")]
@@ -206,5 +243,99 @@ namespace LudoLab_ConnectSys_Server.Controllers
             var listaPeriodos = await _context.ListaPeriodo.ToListAsync();
             return Ok(listaPeriodos);
         }
+
+        // Obtener cursos por periodo
+        [HttpGet("{id_periodo}/cursos")]
+        public async Task<ActionResult<List<Curso>>> GetCursosByPeriodo(int id_periodo)
+        {
+            var periodos = await _context.Periodo
+                .Where(p => p.id_periodo == id_periodo)
+                .ToListAsync();
+
+            if (periodos == null || !periodos.Any())
+            {
+                return NotFound("No se encontraron cursos para el periodo especificado.");
+            }
+
+            var cursos = await _context.Curso
+                .Where(c => periodos.Select(p => p.id_curso).Contains(c.id_curso))
+                .ToListAsync();
+
+            return Ok(cursos);
+        }
+
+        // Obtener todos los periodos con nombres
+        [HttpGet("all-periodos-con-nombre")]
+        public async Task<ActionResult<List<PeriodoConNombre>>> GetPeriodos()
+        {
+            var periodos = await _context.Periodo.ToListAsync();
+            var listaPeriodos = await _context.ListaPeriodo.ToListAsync();
+
+            var periodosConNombre = periodos.Select(p => new PeriodoConNombre
+            {
+                id_periodo = p.id_periodo,
+                fecha_inicio_periodo = p.fecha_inicio_periodo,
+                fecha_fin_periodo = p.fecha_fin_periodo,
+                duracion_periodo_horas = p.duracion_periodo_horas,
+                id_curso = p.id_curso,
+                id_ListaPeriodo = p.id_ListaPeriodo,
+                nombre_periodo = listaPeriodos.FirstOrDefault(lp => lp.id_lista_periodo == p.id_ListaPeriodo)?.nombre_periodo
+            }).ToList();
+
+            return Ok(periodosConNombre);
+        }
+
+        [HttpGet("por-curso/{id_curso}")]
+        public async Task<ActionResult<List<PeriodoConNombre>>> GetPeriodosPorCurso(int id_curso)
+        {
+            var periodos = await _context.Periodo
+                .Where(p => p.id_curso == id_curso)
+                .ToListAsync();
+
+            var listaPeriodos = await _context.ListaPeriodo.ToListAsync();
+            var periodosConNombre = periodos.Select(p => new PeriodoConNombre
+            {
+                id_periodo = p.id_periodo,
+                fecha_inicio_periodo = p.fecha_inicio_periodo,
+                fecha_fin_periodo = p.fecha_fin_periodo,
+                duracion_periodo_horas = p.duracion_periodo_horas,
+                id_curso = p.id_curso,
+                id_ListaPeriodo = p.id_ListaPeriodo,
+                nombre_periodo = listaPeriodos.FirstOrDefault(lp => lp.id_lista_periodo == p.id_ListaPeriodo)?.nombre_periodo
+            }).ToList();
+
+            if (!periodosConNombre.Any())
+            {
+                return NotFound($"No se encontraron periodos para el curso con id {id_curso}");
+            }
+
+            return Ok(periodosConNombre);
+        }
+
+
+        [HttpGet("Activos")]
+        public async Task<ActionResult<List<PeriodoConCursoInfo>>> GetPeriodosActivos()
+        {
+            var query = from p in _context.Periodo
+                        join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo
+                        join c in _context.Curso on p.id_curso equals c.id_curso
+                        where p.activo == true
+                        select new PeriodoConCursoInfo
+                        {
+                            id_periodo = p.id_periodo,
+                            nombre_periodo = lp.nombre_periodo,
+                            fecha_inicio_periodo = p.fecha_inicio_periodo,
+                            fecha_fin_periodo = p.fecha_fin_periodo,
+                            duracion_periodo_horas = p.duracion_periodo_horas,
+                            nombre_curso = c.nombre_curso,
+                            id_curso = p.id_curso // Asegúrate de que esto está siendo asignado
+                        };
+
+            var lista = await query.ToListAsync();
+            return Ok(lista);
+        }
+
+
+
     }
 }

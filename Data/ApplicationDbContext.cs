@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using DirectorioDeArchivos.Shared;
 using System.Collections.Generic;
+using LudoLab_ConnectSys_Server.Services;
 
 namespace LudoLab_ConnectSys_Server.Data
 {
@@ -21,9 +22,31 @@ namespace LudoLab_ConnectSys_Server.Data
         public DbSet<Grupo> Grupo { get; set; }
         public DbSet<Instructor> Instructor { get; set; }
         public DbSet<Modalidad> Modalidad { get; set; }
-        public DbSet<Horas_instructor> Horas_instructor { get; set; }
+        //public DbSet<Horas_instructor> Horas_instructor { get; set; }
         public DbSet<ListaPeriodo> ListaPeriodo { get; set; }
         public DbSet<UsuarioPeriodo> UsuarioPeriodo { get; set; }
         public DbSet<InstructorPeriodo> InstructorPeriodo { get; set; }
+        public DbSet<HorarioPreferenteEstudiante> HorarioPreferenteEstudiante { get; set; }
+        public DbSet<HorarioPreferenteInstructor> HorarioPreferenteInstructor { get; set; }
+        public DbSet<Horario> Horario { get; set; }
+        public DbSet<Matricula> Matricula { get; set; }
+        public DbSet<RegistroInstructor> RegistroInstructor { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Horario>(entity =>
+            {
+                entity.HasKey(e => e.id_horario);
+                entity.Property(e => e.id_grupo).IsRequired();
+                entity.Property(e => e.dia_semana).HasColumnName("dia_semana").HasMaxLength(10).IsRequired();
+                entity.Property(e => e.hora_inicio).HasColumnName("hora_inicio").HasColumnType("time").IsRequired();
+                entity.Property(e => e.hora_fin).HasColumnName("hora_fin").HasColumnType("time").IsRequired();
+            });
+
+            // Configurar otras entidades según sea necesario
+        }
+
     }
+
+
 }
