@@ -322,7 +322,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(grupo);
         }
 
-
+        //Detalles del Grupo por ID
         [HttpGet("{id_grupo}/detalles")]
         public async Task<ActionResult<GrupoConDetalles>> GetGrupoDetalles(int id_grupo)
         {
@@ -351,6 +351,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(grupo);
         }
 
+        //Estudiantes del Grupo por ID  del grupo
         [HttpGet("{id_grupo}/estudiantes")]
         public async Task<ActionResult<List<EstudianteConDetalles>>> GetEstudiantesPorGrupo(int id_grupo)
         {
@@ -371,6 +372,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(estudiantes);
         }
 
+        //Crear nombre del grupo automaticamente
         private async Task<string> GenerarNombreGrupo(int periodoId)
         {
             var ultimoGrupo = await _context.Grupo
