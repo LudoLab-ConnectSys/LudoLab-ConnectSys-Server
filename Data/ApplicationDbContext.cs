@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using DirectorioDeArchivos.Shared;
 using System.Collections.Generic;
 using LudoLab_ConnectSys_Server.Services;
+using LudoLab_ConnectSys_Server.Controllers;
 
 namespace LudoLab_ConnectSys_Server.Data
 {
@@ -31,21 +32,12 @@ namespace LudoLab_ConnectSys_Server.Data
         public DbSet<Horario> Horario { get; set; }
         public DbSet<Matricula> Matricula { get; set; }
         public DbSet<RegistroInstructor> RegistroInstructor { get; set; }
-
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<Horario>(entity =>
-            {
-                entity.HasKey(e => e.id_horario);
-                entity.Property(e => e.id_grupo).IsRequired();
-                entity.Property(e => e.dia_semana).HasColumnName("dia_semana").HasMaxLength(10).IsRequired();
-                entity.Property(e => e.hora_inicio).HasColumnName("hora_inicio").HasColumnType("time").IsRequired();
-                entity.Property(e => e.hora_fin).HasColumnName("hora_fin").HasColumnType("time").IsRequired();
-            });
-
-            // Configurar otras entidades según sea necesario
-        }
-
+        public DbSet<GrupoDto> GrupoDto { get; set; }
+        public DbSet<InstructorDto> InstructorDto { get; set; }
+        public DbSet<Encuesta> Encuesta { get; set; }//para las encuestas
+        public DbSet<Pregunta> Pregunta { get; set; }
+        public DbSet<Respuesta> Respuesta { get; set; }
+        public DbSet<Horas_instructor> Horas_instructor { get; set; }
     }
 
 
