@@ -133,6 +133,23 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(grupo);
         }
 
+
+        [HttpGet("{id_curso}/Nombre")]
+        public async Task<ActionResult<string>> GetNombreCurso(int id_curso)
+        {
+            var curso = await _context.Curso
+                                      .Where(c => c.id_curso == id_curso)
+                                      .Select(c => c.nombre_curso)
+                                      .FirstOrDefaultAsync();
+
+            if (curso == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(curso);
+        }
+
         private bool CursoExists(int id_curso)
         {
             return _context.Curso.Any(e => e.id_curso == id_curso);
