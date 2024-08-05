@@ -189,7 +189,50 @@ namespace LudoLab_ConnectSys_Server.Controllers
             public int IdPeriodo { get; set; }
             public string NuevoNombreArchivo { get; set; }
         }
+        /*------------------------------------- reportes de cursos completos -------------------------------------*/
+        [HttpGet("GetReporte/{idPeriodo}")]
+        public async Task<ActionResult<ReporteCursoDTO>> GetReporte(int idPeriodo)
+        {
+            var periodo = await _context.Periodo.FindAsync(idPeriodo);
+            if (periodo == null)
+            {
+                return NotFound();
+            }
 
+            var curso = await _context.Curso.FindAsync(periodo.id_curso);
+            var grupos = await _context.Grupo.Where(g => g.id_periodo == idPeriodo).ToListAsync();
+            var horarios = await _context.Horario.Where(h => grupos.Select(g => g.id_grupo).Contains(h.id_grupo)).ToListAsync();
+            var horasInstructores = await _context.Horas_instructor.Where(h => h.id_periodo == idPeriodo).ToListAsync();
+            var instructores = await _context.Instructor.Where(i => grupos.Select(g => g.id_instructor).Contains(i.id_instructor)).ToListAsync();
+            var estudiantes = await _context.Estudiante.Where(e => grupos.Select(g => g.id_grupo).Contains(e.id_grupo.Value)).ToListAsync();
+            var usuarios = await _context.Usuario.Where(u => instructores.Select(i => i.id_usuario).Contains(u.id_usuario)
+                || estudiantes.Select(e => e.id_usuario).Contains(u.id_usuario)).ToListAsync();
 
+            var reporte = new ReporteCursoDTO
+            {
+                Periodo = periodo,
+                Curso = curso,
+                Grupos = grupos,
+                Horarios = horarios,
+                HorasInstructores = horasInstructores,
+                Instructores = instructores,
+                Estudiantes = estudiantes,
+                Usuarios = usuarios
+            };
+
+            return Ok(reporte);
+        }
     }
+    public class ReporteCursoDTO
+    {
+        public Periodo Periodo { get; set; }
+        public Curso Curso { get; set; }
+        public List<Grupo> Grupos { get; set; }
+        public List<Horario> Horarios { get; set; }
+        public List<Horas_instructor> HorasInstructores { get; set; }
+        public List<Instructor> Instructores { get; set; }
+        public List<Estudiante> Estudiantes { get; set; }
+        public List<Usuario> Usuarios { get; set; }
+    }
+
 }

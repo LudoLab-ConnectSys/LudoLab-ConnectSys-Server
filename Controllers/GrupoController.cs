@@ -198,6 +198,37 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
             return Ok(grupos);
         }
+
+        [HttpGet]
+        [Route("GetTipoEstudiantesPorPeriodo/{id_periodo}")]
+        public async Task<ActionResult<List<UsuarioPeriodo>>> GetTipoUsuariosByPeriodo(int id_periodo, string tiposEstudiante)
+        {
+            var result = await _context.Grupo
+                .Where(g => g.id_periodo == id_periodo)
+                .Join(_context.Estudiante, g => g.id_grupo, e => e.id_grupo, (g, e) => new { g, e })
+                .Join(_context.Usuario, ge => ge.e.id_usuario, u => u.id_usuario, (ge, u) => new { ge, u })
+                .Join(_context.Certificado, geu => geu.ge.g.id_periodo, c => c.id_periodo, (geu, c) => new UsuarioPeriodo // Join con Certificado
+                {
+                    IdUsuario = geu.u.id_usuario,
+                    CedulaUsuario = geu.u.cedula_usuario,
+                    NombreUsuario = geu.u.nombre_usuario,
+                    ApellidosUsuario = geu.u.apellidos_usuario,
+                    EdadUsuario = geu.u.edad_usuario,
+                    CorreoUsuario = geu.u.correo_usuario,
+                    CelularUsuario = geu.u.celular_usuario,
+                    TelefonoUsuario = geu.u.telefono_usuario,
+                    horas_asignadas_estudiante = geu.ge.e.horas_asignadas_estudiante,
+                    TipoEstudiante = geu.ge.e.tipo_estudiante,
+                    IdGrupo = geu.ge.g.id_grupo,
+                    IdPeriodo = geu.ge.g.id_periodo,
+                    IdInstructor = geu.ge.g.id_instructor,
+                    NombreCertificado = c.nombre_certificado // Obtener el nombre del certificado
+                })
+                .Where(up => up.TipoEstudiante == tiposEstudiante) // Filtrar por TipoEstudiante
+                .ToListAsync();
+
+            return Ok(result);
+        }
         [HttpGet]
         [Route("GetEstudiantesPorPeriodo/{id_periodo}")]
         public async Task<ActionResult<List<UsuarioPeriodo>>> GetUsuariosByPeriodo(int id_periodo)
@@ -217,6 +248,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
                     CelularUsuario = geu.u.celular_usuario,
                     TelefonoUsuario = geu.u.telefono_usuario,
                     horas_asignadas_estudiante = geu.ge.e.horas_asignadas_estudiante,
+                    TipoEstudiante = geu.ge.e.tipo_estudiante,
                     IdGrupo = geu.ge.g.id_grupo,
                     IdPeriodo = geu.ge.g.id_periodo,
                     IdInstructor = geu.ge.g.id_instructor,
