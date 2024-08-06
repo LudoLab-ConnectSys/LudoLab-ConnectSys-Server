@@ -98,7 +98,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
         }
 
 
-        [HttpGet("Detalles")]
+        /*[HttpGet("Detalles")]
         public async Task<ActionResult<IEnumerable<InstructorConDetalles>>> GetInstructoresConDetalles()
         {
             var instructores = await _context.Instructor
@@ -133,6 +133,55 @@ namespace LudoLab_ConnectSys_Server.Controllers
                 .ToListAsync();
 
             return Ok(instructores);
+        }*/
+
+        [HttpGet("Detalles")]
+        public async Task<ActionResult<PagedResponse<InstructorConDetallesCompleto>>> GetInstructoresConDetalles([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+        {
+            var query = _context.Instructor
+                .Join(_context.Usuario, i => i.id_usuario, u => u.id_usuario, (i, u) => new { i, u })
+                .GroupBy(x => new { x.i.id_instructor, x.u.nombre_usuario, x.u.apellidos_usuario, x.u.correo_usuario, x.u.cedula_usuario })
+                .Select(group => new InstructorConDetallesCompleto
+                {
+                    id_instructor = group.Key.id_instructor,
+                    nombre_usuario = group.Key.nombre_usuario,
+                    apellidos_usuario = group.Key.apellidos_usuario,
+                    correo_usuario = group.Key.correo_usuario,
+                    cedula_usuario = group.Key.cedula_usuario, // Incluimos el número de cédula
+                    cursos = _context.RegistroInstructor
+                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                .Join(_context.Curso, ri => ri.id_curso, c => c.id_curso, (ri, c) => c.nombre_curso)
+                                .ToList(),
+                    periodos = _context.RegistroInstructor
+                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                .Join(_context.Periodo, ri => ri.id_periodo, p => p.id_periodo, (ri, p) => _context.ListaPeriodo
+                                        .Where(lp => lp.id_lista_periodo == p.id_ListaPeriodo)
+                                        .Select(lp => lp.nombre_periodo)
+                                        .FirstOrDefault())
+                                .ToList(),
+                    id_cursos = _context.RegistroInstructor
+                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                .Select(ri => ri.id_curso)
+                                .ToList(),
+                    id_periodos = _context.RegistroInstructor
+                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                .Select(ri => ri.id_periodo)
+                                .ToList()
+                });
+
+            var totalRecords = await query.CountAsync();
+            var instructors = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var pagedResponse = new PagedResponse<InstructorConDetallesCompleto>
+            {
+                Items = instructors,
+                TotalCount = totalRecords
+            };
+
+            return Ok(pagedResponse);
         }
 
 
@@ -219,7 +268,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok();
         }
 
-        [HttpGet("DetallesById/{id_instructor}")]
+        /*[HttpGet("DetallesById/{id_instructor}")]
         public async Task<ActionResult<InstructorConDetallesCompleto>> GetInstructorDetallesById(int id_instructor)
         {
             var instructor = await _context.Instructor
@@ -248,7 +297,35 @@ namespace LudoLab_ConnectSys_Server.Controllers
             }
 
             return Ok(instructor);
+        }*/
+
+        [HttpGet("DetallesById/{id_instructor}")]
+        public async Task<ActionResult<InstructorConDetallesCompleto>> GetInstructorDetallesById(int id_instructor)
+        {
+            var instructor = await _context.Instructor
+                .Where(i => i.id_instructor == id_instructor)
+                .Join(_context.Usuario, i => i.id_usuario, u => u.id_usuario, (i, u) => new { i, u })
+                .Select(iu => new InstructorConDetallesCompleto
+                {
+                    id_instructor = iu.i.id_instructor,
+                    nombre_usuario = iu.u.nombre_usuario,
+                    apellidos_usuario = iu.u.apellidos_usuario,
+                    cedula_usuario = iu.u.cedula_usuario,
+                    correo_usuario = iu.u.correo_usuario,
+                    celular_usuario = iu.u.celular_usuario,
+                    telefono_usuario = iu.u.telefono_usuario,
+                    edad_usuario = iu.u.edad_usuario, // Incluye la edad del usuario
+                })
+                .FirstOrDefaultAsync();
+
+            if (instructor == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(instructor);
         }
+
 
 
         private bool InstructorExists(int id_instructor)
@@ -315,7 +392,216 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(response);
         }
 
+        /*
+
+         // GET: api/Instructor/{id_instructor}/HorasTotales
+         [HttpGet("{id_instructor}/HorasTotales")]
+         public async Task<ActionResult<Horas_instructor>> GetHorasTotales(int id_instructor)
+         {
+             var horas = await _context.Horas_instructor
+                 .FirstOrDefaultAsync(h => h.id_instructor == id_instructor);
+
+             if (horas == null)
+             {
+                 return Ok(new Horas_instructor { id_instructor = id_instructor, horas_ganadas_instructor = 0 });
+             }
+
+             return Ok(horas);
+         }
+
+         // POST: api/HorasInstructor
+         [HttpPost("HorasInstructor")]
+         public async Task<IActionResult> PostHorasInstructor(Horas_instructor model)
+         {
+             // Obtener el id_periodo relacionado con el instructor
+             var registroInstructor = await _context.RegistroInstructor
+                 .FirstOrDefaultAsync(ri => ri.id_instructor == model.id_instructor);
+
+             if (registroInstructor == null)
+             {
+                 return BadRequest("No se encontró un periodo relacionado con el instructor.");
+             }
+
+             model.id_periodo = registroInstructor.id_periodo;
+
+             _context.Horas_instructor.Add(model);
+             await _context.SaveChangesAsync();
+
+             return CreatedAtAction(nameof(GetHorasTotales), new { id_instructor = model.id_instructor }, model);
+         }
+
+         // PUT: api/HorasInstructor/{id_instructor}
+         [HttpPut("HorasInstructor/{id_instructor}")]
+         public async Task<IActionResult> PutHorasInstructor(int id_instructor, Horas_instructor model)
+         {
+             if (id_instructor != model.id_instructor)
+             {
+                 return BadRequest();
+             }
+
+             var horas = await _context.Horas_instructor.FirstOrDefaultAsync(h => h.id_instructor == id_instructor);
+             if (horas == null)
+             {
+                 return NotFound();
+             }
+
+             horas.horas_ganadas_instructor = model.horas_ganadas_instructor;
+
+             _context.Entry(horas).State = EntityState.Modified;
+             await _context.SaveChangesAsync();
+
+             return NoContent();
+         }*/
+
+
+
+        // GET: api/Instructor/{id_instructor}/HorasTotales
+        [HttpGet("{id_instructor}/HorasTotales")]
+        public async Task<ActionResult<HorasModel>> GetHorasTotales(int id_instructor)
+        {
+            var horas = await _context.Horas_instructor
+                .Where(h => h.id_instructor == id_instructor)
+                .GroupBy(h => h.id_instructor)
+                .Select(g => new HorasModel
+                {
+                    id_instructor = g.Key,
+                    horas_ganadas_instructor = g.Sum(h => h.horas_ganadas_instructor)
+                })
+                .FirstOrDefaultAsync();
+
+            if (horas == null)
+            {
+                return Ok(new HorasModel { id_instructor = id_instructor, horas_ganadas_instructor = 0 });
+            }
+
+            return Ok(horas);
+        }
+
+        /*// POST: api/Instructor/HorasInstructor
+        [HttpPost("HorasInstructor")]
+        public async Task<IActionResult> PostHorasInstructor(Horas_instructor model)
+        {
+            if (!await _context.Periodo.AnyAsync(p => p.id_periodo == model.id_periodo))
+            {
+                return BadRequest("El periodo especificado no existe.");
+            }
+
+            var horas = new Horas_instructor
+            {
+                id_instructor = model.id_instructor,
+                id_periodo = model.id_periodo,
+                horas_ganadas_instructor = model.horas_ganadas_instructor
+            };
+
+            _context.Horas_instructor.Add(horas);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetHorasTotales), new { id_instructor = horas.id_instructor }, model);
+        }
+
+        // PUT: api/Instructor/HorasInstructor/{id_instructor}
+        [HttpPut("HorasInstructor/{id_instructor}")]
+        public async Task<IActionResult> PutHorasInstructor(int id_instructor, Horas_instructor model)
+        {
+            if (id_instructor != model.id_instructor)
+            {
+                return BadRequest();
+            }
+
+            var horas = await _context.Horas_instructor.FirstOrDefaultAsync(h => h.id_instructor == id_instructor);
+            if (horas == null)
+            {
+                return NotFound();
+            }
+
+            horas.horas_ganadas_instructor = model.horas_ganadas_instructor;
+
+            _context.Entry(horas).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        // GET: api/Instructor/{id_instructor}/Periodo/{id_periodo}/Horas
+        [HttpGet("{id_instructor}/Periodo/{id_periodo}/Horas")]
+        public async Task<ActionResult<Horas_instructor>> GetHorasInstructor(int id_instructor, int id_periodo)
+        {
+            var horas = await _context.Horas_instructor
+                .FirstOrDefaultAsync(h => h.id_instructor == id_instructor && h.id_periodo == id_periodo);
+
+            if (horas == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(horas);
+        }*/
+
+        // GET: api/Instructor/{id_instructor}/Periodo/{id_periodo}/Horas
+        [HttpGet("{id_instructor}/Periodo/{id_periodo}/Horas")]
+        public async Task<ActionResult<Horas_instructor>> GetHorasInstructor(int id_instructor, int id_periodo)
+        {
+            // Busca el registro de horas para el instructor y periodo especificado
+            var horas = await _context.Horas_instructor
+                .FirstOrDefaultAsync(h => h.id_instructor == id_instructor && h.id_periodo == id_periodo);
+
+            if (horas == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(horas);
+        }
+
+        // POST: api/Instructor/HorasInstructor
+        [HttpPost("HorasInstructor")]
+        public async Task<IActionResult> PostHorasInstructor(Horas_instructor model)
+        {
+            // Verifica si ya existe un registro para este instructor y periodo
+            var horasExistente = await _context.Horas_instructor
+                .FirstOrDefaultAsync(h => h.id_instructor == model.id_instructor && h.id_periodo == model.id_periodo);
+
+            if (horasExistente != null)
+            {
+                return Conflict("Ya existe un registro para este instructor y este periodo.");
+            }
+
+            // Si no existe, crea un nuevo registro
+            _context.Horas_instructor.Add(model);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetHorasInstructor), new { id_instructor = model.id_instructor, id_periodo = model.id_periodo }, model);
+        }
+
+        // PUT: api/Instructor/HorasInstructor/{id_instructor}/{id_periodo}
+        [HttpPut("HorasInstructor/{id_instructor}/{id_periodo}")]
+        public async Task<IActionResult> PutHorasInstructor(int id_instructor, int id_periodo, Horas_instructor model)
+        {
+            if (id_instructor != model.id_instructor || id_periodo != model.id_periodo)
+            {
+                return BadRequest();
+            }
+
+            // Busca el registro de horas existente para actualizarlo
+            var horas = await _context.Horas_instructor
+                .FirstOrDefaultAsync(h => h.id_instructor == id_instructor && h.id_periodo == id_periodo);
+            if (horas == null)
+            {
+                return NotFound();
+            }
+
+            // Actualiza las horas ganadas
+            horas.horas_ganadas_instructor = model.horas_ganadas_instructor;
+
+            _context.Entry(horas).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
 
     }
+
+
 
 }

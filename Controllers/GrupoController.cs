@@ -379,6 +379,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(grupo);
         }
 
+
         //Detalles del Grupo por ID
         [HttpGet("{id_grupo}/detalles")]
         public async Task<ActionResult<GrupoConDetalles>> GetGrupoDetalles(int id_grupo)

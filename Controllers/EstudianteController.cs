@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using LudoLab_ConnectSys_Server.Data;
 using System.Security.Claims;
+using Microsoft.Data.SqlClient;
 
 namespace LudoLab_ConnectSys_Server.Controllers
 {
@@ -39,7 +40,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
             return estudiante;
         }
-        [HttpGet("Detalles")]
+        /*[HttpGet("Detalles")]
         public async Task<ActionResult<IEnumerable<EstudianteConDetalles>>> GetEstudiantesConDetalles()
         {
             var estudiantes = await _context.Estudiante
@@ -64,7 +65,113 @@ namespace LudoLab_ConnectSys_Server.Controllers
                 .ToListAsync();
 
             return Ok(estudiantes);
+        }*/
+
+        /*[HttpGet("Detalles")]
+        public async Task<ActionResult<IEnumerable<EstudianteConDetalles>>> GetEstudiantesConDetalles(int pageNumber = 1, int pageSize = 10)
+        {
+            var estudiantesQuery = from e in _context.Estudiante
+                                   join u in _context.Usuario on e.id_usuario equals u.id_usuario
+                                   join g in _context.Grupo on e.id_grupo equals g.id_grupo into eg
+                                   from g in eg.DefaultIfEmpty()
+                                   join p in _context.Periodo on g.id_periodo equals p.id_periodo into pg
+                                   from p in pg.DefaultIfEmpty()
+                                   join c in _context.Curso on p.id_curso equals c.id_curso into pc
+                                   from c in pc.DefaultIfEmpty()
+                                   join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo into lpc
+                                   from lp in lpc.DefaultIfEmpty()
+                                   select new
+                                   {
+                                       e,
+                                       u,
+                                       g,
+                                       p,
+                                       c,
+                                       lp
+                                   };
+
+            var estudiantesGrouped = estudiantesQuery
+                .GroupBy(x => new { x.e.id_estudiante, x.u.nombre_usuario, x.u.apellidos_usuario, x.u.edad_usuario, x.u.correo_usuario, x.u.cedula_usuario })
+                .Select(group => new EstudianteConDetalles
+                {
+                    id_estudiante = group.Key.id_estudiante,
+                    nombre_usuario = group.Key.nombre_usuario,
+                    apellidos_usuario = group.Key.apellidos_usuario,
+                    edad_usuario = group.Key.edad_usuario,
+                    correo_usuario = group.Key.correo_usuario,
+                    cedula_usuario = group.Key.cedula_usuario,
+                    cursos = group.Where(g => g.c != null).Select(g => g.c.nombre_curso).ToList(),
+                    periodos = group.Where(g => g.lp != null).Select(g => g.lp.nombre_periodo).ToList(),
+                    id_cursos = group.Where(g => g.c != null).Select(g => g.c.id_curso).ToList(),
+                    id_periodos = group.Where(g => g.lp != null).Select(g => g.lp.id_lista_periodo).ToList()
+                });
+
+            var totalItems = await estudiantesGrouped.CountAsync();
+            var estudiantesPaged = await estudiantesGrouped
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            Response.Headers.Add("X-Total-Count", totalItems.ToString());
+
+            return Ok(estudiantesPaged);
+        }*/
+
+        [HttpGet("Detalles")]
+        public async Task<ActionResult<PagedResponse<EstudianteConDetalles>>> GetEstudiantesConDetalles(int pageNumber = 1, int pageSize = 10)
+        {
+            var estudiantesQuery = from e in _context.Estudiante
+                                   join u in _context.Usuario on e.id_usuario equals u.id_usuario
+                                   join g in _context.Grupo on e.id_grupo equals g.id_grupo into eg
+                                   from g in eg.DefaultIfEmpty()
+                                   join p in _context.Periodo on g.id_periodo equals p.id_periodo into pg
+                                   from p in pg.DefaultIfEmpty()
+                                   join c in _context.Curso on p.id_curso equals c.id_curso into pc
+                                   from c in pc.DefaultIfEmpty()
+                                   join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo into lpc
+                                   from lp in lpc.DefaultIfEmpty()
+                                   select new
+                                   {
+                                       e,
+                                       u,
+                                       g,
+                                       p,
+                                       c,
+                                       lp
+                                   };
+
+            var estudiantesGrouped = estudiantesQuery
+                .GroupBy(x => new { x.e.id_estudiante, x.u.nombre_usuario, x.u.apellidos_usuario, x.u.edad_usuario, x.u.correo_usuario, x.u.cedula_usuario })
+                .Select(group => new EstudianteConDetalles
+                {
+                    id_estudiante = group.Key.id_estudiante,
+                    nombre_usuario = group.Key.nombre_usuario,
+                    apellidos_usuario = group.Key.apellidos_usuario,
+                    edad_usuario = group.Key.edad_usuario,
+                    correo_usuario = group.Key.correo_usuario,
+                    cedula_usuario = group.Key.cedula_usuario,
+                    cursos = group.Where(g => g.c != null).Select(g => g.c.nombre_curso).ToList(),
+                    periodos = group.Where(g => g.lp != null).Select(g => g.lp.nombre_periodo).ToList(),
+                    id_cursos = group.Where(g => g.c != null).Select(g => g.c.id_curso).ToList(),
+                    id_periodos = group.Where(g => g.lp != null).Select(g => g.lp.id_lista_periodo).ToList()
+                });
+
+            var totalItems = await estudiantesGrouped.CountAsync();
+            var estudiantesPaged = await estudiantesGrouped
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var response = new PagedResponse<EstudianteConDetalles>
+            {
+                Items = estudiantesPaged,
+                TotalCount = totalItems
+            };
+
+            return Ok(response);
         }
+
+
 
 
         [HttpGet("DetallesEstudiante/{id_estudiante}")]
@@ -205,16 +312,23 @@ namespace LudoLab_ConnectSys_Server.Controllers
         [HttpDelete("{id_estudiante}")]
         public async Task<IActionResult> DeleteEstudiante(int id_estudiante)
         {
+            // Verificar si el estudiante existe
             var estudiante = await _context.Estudiante.FindAsync(id_estudiante);
             if (estudiante == null)
             {
-                return NotFound();
+                return NotFound(new { message = "Estudiante no encontrado" });
             }
 
-            _context.Estudiante.Remove(estudiante);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            try
+            {
+                var result = await _context.Database.ExecuteSqlRawAsync("EXEC sp_EliminarEstudiante @p0", id_estudiante);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                // Manejo de errores
+                return StatusCode(StatusCodes.Status500InternalServerError, $"Error al eliminar el estudiante: {ex.Message}");
+            }
         }
 
         [HttpGet("CursosInscritos/{id_estudiante}")]
@@ -263,25 +377,11 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(estudiantesSinGrupo);
         }
 
-        [HttpPost("HorariosPreferentes/{cursoId}")]
-        public async Task<ActionResult> GuardarHorariosPreferentes(int cursoId, List<HorarioPreferenteEstudiante> horarios)
+        [HttpPost("HorariosPreferentes/{cursoId}/{id_estudiante}")]
+        public async Task<ActionResult> GuardarHorariosPreferentes(int cursoId, int id_estudiante, List<HorarioPreferenteEstudiante> horarios)
         {
-            // Obtener el id del usuario autenticado (asumiendo que es un int)
-            var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-            if (usuarioId == null)
-            {
-                return Unauthorized("Usuario no autenticado.");
-            }
-
-            // Convertir el id del usuario a int
-            if (!int.TryParse(usuarioId, out int usuarioIdInt))
-            {
-                return BadRequest("Id de usuario inválido.");
-            }
-
-            // Obtener el estudiante
-            var estudiante = await _context.Estudiante.FirstOrDefaultAsync(e => e.id_usuario == usuarioIdInt);
+            // Obtener el estudiante usando el id_estudiante proporcionado
+            var estudiante = await _context.Estudiante.FirstOrDefaultAsync(e => e.id_estudiante == id_estudiante);
 
             if (estudiante == null)
             {
@@ -382,4 +482,6 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return _context.Estudiante.Any(e => e.id_estudiante == id_estudiante);
         }
     }
+
+    
 }
