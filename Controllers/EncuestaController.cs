@@ -79,58 +79,65 @@ namespace LudoLab_ConnectSys_Server.Controllers
         {
             try
             {
-                // Obtener la sumatoria de respuestas convertidas a entero para los tutores del grupo del periodo y la encuesta específica
-                var sumatoriaTutores = await _context.Respuesta
-                    .Join(_context.Estudiante,
-                        respuesta => respuesta.id_estudiante,
-                        estudiante => estudiante.id_estudiante,
-                        (respuesta, estudiante) => new { respuesta, estudiante })
+                // Obtener todos los tutores del periodo y agruparlos por tutor (incluyendo todos los grupos)
+                var tutores = await _context.Instructor
                     .Join(_context.Grupo,
-                        est => est.estudiante.id_grupo,
-                        grupo => grupo.id_grupo,
-                        (est, grupo) => new { est.respuesta, est.estudiante, grupo })
-                    .Join(_context.Instructor,
-                        grp => grp.grupo.id_instructor,
                         instructor => instructor.id_instructor,
-                        (grp, instructor) => new { grp.respuesta, grp.estudiante, grp.grupo, instructor })
                     .Join(_context.Pregunta,
-                        resp => resp.respuesta.id_pregunta,
-                        pregunta => pregunta.id_pregunta,
-                        (resp, pregunta) => new { resp.respuesta, resp.estudiante, resp.grupo, resp.instructor, pregunta })
+                        grupo => grupo.id_instructor,
+                        (instructor, grupo) => new { instructor, grupo })
                     .Join(_context.Usuario,
                         inst => inst.instructor.id_usuario,
                         usuario => usuario.id_usuario,
-                        (inst, usuario) => new { inst.respuesta, inst.estudiante, inst.grupo, inst.instructor, inst.pregunta, usuario })
-                    .Where(x => x.pregunta.id_encuesta == id_encuesta && x.grupo.id_periodo == idPeriodoF)
-                    .ToListAsync(); // Usamos ToListAsync para realizar la consulta asincrónicamente
-
-                var sumatoriaPorTutores = sumatoriaTutores
-                    .GroupBy(x => new { x.instructor.id_usuario, x.usuario.nombre_usuario, x.usuario.apellidos_usuario })
+                        (inst, usuario) => new { inst.instructor, inst.grupo, usuario })
+                    .Where(x => x.grupo.id_periodo == idPeriodoF)
+                    .GroupBy(x => new { x.instructor.id_instructor, x.usuario.nombre_usuario, x.usuario.apellidos_usuario })
                     .Select(g => new
                     {
+                        g.Key.id_instructor,
                         NombreCompletoTutor = $"{g.Key.nombre_usuario} {g.Key.apellidos_usuario}",
-                        Sumatoria = g.Sum(x =>
-                        {
-                            int result;
-                            if (int.TryParse(x.respuesta.respuesta, out result))
-                            {
-                                return result;
-                            }
-                            return 0;
-                        })
+                        Grupos = g.Select(x => x.grupo.id_grupo).ToList()
                     })
-                    .ToList();
+                    .ToListAsync();
 
-                // Obtener la sumatoria total para todo el periodo y la encuesta específica
-                var sumatoriaTotal = await _context.Respuesta
+                // Obtener la sumatoria de respuestas para todos los grupos del periodo y encuesta específica
+                var respuestas = await _context.Respuesta
                     .Join(_context.Pregunta,
                         respuesta => respuesta.id_pregunta,
                         pregunta => pregunta.id_pregunta,
                         (respuesta, pregunta) => new { respuesta, pregunta })
-                    .Where(x => x.pregunta.id_encuesta == id_encuesta)
-                    .ToListAsync(); // Usamos ToListAsync para realizar la consulta asincrónicamente
+                    .Join(_context.Estudiante,
+                        resp => resp.respuesta.id_estudiante,
+                        estudiante => estudiante.id_estudiante,
+                        (resp, estudiante) => new { resp.respuesta, resp.pregunta, estudiante })
+                    .Join(_context.Grupo,
+                        est => est.estudiante.id_grupo,
+                        grupo => grupo.id_grupo,
+                        (est, grupo) => new { est.respuesta, est.pregunta, est.estudiante, grupo })
+                    .Where(x => x.pregunta.id_encuesta == id_encuesta && x.grupo.id_periodo == idPeriodoF)
+                    .ToListAsync();
 
-                var sumatoriaTotalPeriodo = sumatoriaTotal
+                // Agrupar respuestas por tutor y calcular la sumatoria
+                var sumatoriaPorTutores = tutores
+                    .Select(tutor => new
+                    {
+                        tutor.NombreCompletoTutor,
+                        Sumatoria = respuestas
+                            .Where(x => tutor.Grupos.Contains(x.grupo.id_grupo))
+                            .Sum(x =>
+                            {
+                                int result;
+                                if (int.TryParse(x.respuesta.respuesta, out result))
+                                {
+                                    return result;
+                                }
+                                return 0;
+                            })
+                    })
+                    .ToList();
+
+                // Obtener la sumatoria total para todo el periodo y la encuesta específica
+                var sumatoriaTotal = respuestas
                     .Sum(x =>
                     {
                         int result;
@@ -141,13 +148,16 @@ namespace LudoLab_ConnectSys_Server.Controllers
                         return 0;
                     });
 
-                return Ok(new { SumatoriaTutores = sumatoriaPorTutores, SumatoriaTotalPeriodo = sumatoriaTotalPeriodo });
+                return Ok(new { SumatoriaTutores = sumatoriaPorTutores, SumatoriaTotalPeriodo = sumatoriaTotal });
             }
             catch (Exception ex)
             {
                 return BadRequest($"Error al calcular la sumatoria: {ex.Message}");
             }
         }
+
+
+
 
         [HttpGet("getnombreencuesta/{id}")]
         public async Task<ActionResult<string>> GetEncuestaTitulo(int id)
