@@ -75,7 +75,85 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
         // GET: api/Encuesta/SumatoriaRespuestasPorPeriodo
         [HttpGet("SumatoriaRespuestasPorPeriodo")]
+        public async Task<ActionResult<object>> SumatoriaRespuestasPorPeriodo(int idPeriodoF, int id_encuesta)
+        {
+            try
+            {
+                // Obtener todos los tutores del periodo y agruparlos por tutor (incluyendo todos los grupos)
+                var tutores = await _context.Instructor
+                    .Join(_context.Grupo,
+                        instructor => instructor.id_instructor,
+                        grupo => grupo.id_instructor,
+                        (instructor, grupo) => new { instructor, grupo })
+                    .Join(_context.Usuario,
+                        inst => inst.instructor.id_usuario,
+                        usuario => usuario.id_usuario,
+                        (inst, usuario) => new { inst.instructor, inst.grupo, usuario })
+                    .Where(x => x.grupo.id_periodo == idPeriodoF)
+                    .GroupBy(x => new { x.instructor.id_instructor, x.usuario.nombre_usuario, x.usuario.apellidos_usuario })
+                    .Select(g => new
+                    {
+                        g.Key.id_instructor,
+                        NombreCompletoTutor = $"{g.Key.nombre_usuario} {g.Key.apellidos_usuario}",
+                        Grupos = g.Select(x => x.grupo.id_grupo).ToList()
+                    })
+                    .ToListAsync();
 
+                // Obtener la sumatoria de respuestas para todos los grupos del periodo y encuesta específica
+                var respuestas = await _context.Respuesta
+                    .Join(_context.Pregunta,
+                        respuesta => respuesta.id_pregunta,
+                        pregunta => pregunta.id_pregunta,
+                        (respuesta, pregunta) => new { respuesta, pregunta })
+                    .Join(_context.Estudiante,
+                        resp => resp.respuesta.id_estudiante,
+                        estudiante => estudiante.id_estudiante,
+                        (resp, estudiante) => new { resp.respuesta, resp.pregunta, estudiante })
+                    .Join(_context.Grupo,
+                        est => est.estudiante.id_grupo,
+                        grupo => grupo.id_grupo,
+                        (est, grupo) => new { est.respuesta, est.pregunta, est.estudiante, grupo })
+                    .Where(x => x.pregunta.id_encuesta == id_encuesta && x.grupo.id_periodo == idPeriodoF)
+                    .ToListAsync();
+
+                // Agrupar respuestas por tutor y calcular la sumatoria
+                var sumatoriaPorTutores = tutores
+                    .Select(tutor => new
+                    {
+                        tutor.NombreCompletoTutor,
+                        Sumatoria = respuestas
+                            .Where(x => tutor.Grupos.Contains(x.grupo.id_grupo))
+                            .Sum(x =>
+                            {
+                                int result;
+                                if (int.TryParse(x.respuesta.respuesta, out result))
+                                {
+                                    return result;
+                                }
+                                return 0;
+                            })
+                    })
+                    .ToList();
+
+                // Obtener la sumatoria total para todo el periodo y la encuesta específica
+                var sumatoriaTotal = respuestas
+                    .Sum(x =>
+                    {
+                        int result;
+                        if (int.TryParse(x.respuesta.respuesta, out result))
+                        {
+                            return result;
+                        }
+                        return 0;
+                    });
+
+                return Ok(new { SumatoriaTutores = sumatoriaPorTutores, SumatoriaTotalPeriodo = sumatoriaTotal });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Error al calcular la sumatoria: {ex.Message}");
+            }
+        }
 
 
 
