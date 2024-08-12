@@ -116,7 +116,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
                     .Where(x => x.pregunta.id_encuesta == id_encuesta && x.grupo.id_periodo == idPeriodoF)
                     .ToListAsync();
 
-                // Agrupar respuestas por tutor y calcular la sumatoria
+                // Agrupar respuestas por tutor y calcular la sumatoria y las notas por pregunta
                 var sumatoriaPorTutores = tutores
                     .Select(tutor => new
                     {
@@ -131,7 +131,25 @@ namespace LudoLab_ConnectSys_Server.Controllers
                                     return result;
                                 }
                                 return 0;
+                            }),
+                        NotasPorPregunta = respuestas
+                            .Where(x => tutor.Grupos.Contains(x.grupo.id_grupo))
+                            .GroupBy(x => new { x.pregunta.id_pregunta, x.pregunta.texto_pregunta })
+                            .Select(g => new
+                            {
+                                g.Key.id_pregunta,
+                                g.Key.texto_pregunta,
+                                Nota = g.Sum(x =>
+                                {
+                                    int result;
+                                    if (int.TryParse(x.respuesta.respuesta, out result))
+                                    {
+                                        return result;
+                                    }
+                                    return 0;
+                                })
                             })
+                            .ToList()
                     })
                     .ToList();
 
