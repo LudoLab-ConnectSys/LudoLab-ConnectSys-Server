@@ -37,7 +37,20 @@ namespace LudoLab_ConnectSys_Server.Data
         public DbSet<Pregunta> Pregunta { get; set; }
         public DbSet<Respuesta> Respuesta { get; set; }
         public DbSet<Horas_instructor> Horas_instructor { get; set; }
+        public DbSet<UsuarioRol> UsuarioRol { get; set; }
+        public DbSet <Rol> Rol { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            // Configurar la clave primaria compuesta para UsuarioRol
+            modelBuilder.Entity<UsuarioRol>()
+                .HasKey(ur => new { ur.UsuarioId, ur.RolId });
+        }
     }
+
+    
 
 
 }

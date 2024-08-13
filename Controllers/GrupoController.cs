@@ -380,7 +380,6 @@ namespace LudoLab_ConnectSys_Server.Controllers
         }
 
 
-        //Detalles del Grupo por ID
         [HttpGet("{id_grupo}/detalles")]
         public async Task<ActionResult<GrupoConDetalles>> GetGrupoDetalles(int id_grupo)
         {
@@ -394,7 +393,16 @@ namespace LudoLab_ConnectSys_Server.Controllers
                                    id_periodo = g.id_periodo,
                                    id_instructor = g.id_instructor,
                                    nombre_instructor = u.nombre_usuario + " " + u.apellidos_usuario,
-                                   nombre_grupo = g.nombre_grupo ?? string.Empty,
+                                   nombre_grupo = g.nombre_grupo,
+                                   // Asegúrate de incluir la propiedad 'horarios' aquí
+                                   horarios = _context.Horario
+                                       .Where(h => h.id_grupo == g.id_grupo)
+                                       .Select(h => new HorarioGrupo
+                                       {
+                                           dia_semana = h.dia_semana,
+                                           hora_inicio = h.hora_inicio,
+                                           hora_fin = h.hora_fin
+                                       }).ToList(),
                                    estudiantes = (from e in _context.Estudiante
                                                   join ue in _context.Usuario on e.id_usuario equals ue.id_usuario
                                                   where e.id_grupo == g.id_grupo
@@ -408,6 +416,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
             return Ok(grupo);
         }
+
 
         //Estudiantes del Grupo por ID  del grupo
         [HttpGet("{id_grupo}/estudiantes")]
@@ -450,6 +459,86 @@ namespace LudoLab_ConnectSys_Server.Controllers
             }
 
             return $"GR-{contadorGrupo}";
+        }
+
+        [HttpGet("GruposDelInstructor/{instructorId}")]
+        public async Task<ActionResult<IEnumerable<GrupoConCursoPeriodo>>> GetGruposDelInstructor(int instructorId)
+        {
+            var gruposDelInstructor = await (from g in _context.Grupo
+                                             join p in _context.Periodo on g.id_periodo equals p.id_periodo
+                                             join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo
+                                             join c in _context.Curso on p.id_curso equals c.id_curso
+                                             where g.id_instructor == instructorId
+                                             select new GrupoConCursoPeriodo
+                                             {
+                                                 id_grupo = g.id_grupo,
+                                                 nombre_grupo = g.nombre_grupo,
+                                                 nombre_periodo = lp.nombre_periodo,
+                                                 fecha_inicio_periodo = p.fecha_inicio_periodo,
+                                                 fecha_fin_periodo = p.fecha_fin_periodo,
+                                                 nombre_curso = c.nombre_curso
+                                             }).ToListAsync();
+
+            return Ok(gruposDelInstructor);
+        }
+
+        [HttpGet("{id_grupo}/detalles-completos")]
+        public async Task<ActionResult<GrupoConDetalles>> GetGrupoConEstudiantesYHorarios(int id_grupo)
+        {
+            var grupo = await (from g in _context.Grupo
+                               join i in _context.Instructor on g.id_instructor equals i.id_instructor
+                               join u in _context.Usuario on i.id_usuario equals u.id_usuario
+                               where g.id_grupo == id_grupo
+                               select new GrupoConDetalles
+                               {
+                                   id_grupo = g.id_grupo,
+                                   id_periodo = g.id_periodo,
+                                   id_instructor = g.id_instructor,
+                                   nombre_instructor = u.nombre_usuario + " " + u.apellidos_usuario,
+                                   nombre_grupo = g.nombre_grupo ?? string.Empty,
+                                   estudiantes = _context.Estudiante
+                                       .Where(e => e.id_grupo == g.id_grupo)
+                                       .Join(_context.Usuario, e => e.id_usuario, u => u.id_usuario, (e, u) => u.nombre_usuario + " " + u.apellidos_usuario)
+                                       .ToList(),
+                                   horarios = _context.Horario
+                                       .Where(h => h.id_grupo == g.id_grupo)
+                                       .Select(h => new HorarioGrupo
+                                       {
+                                           dia_semana = h.dia_semana,
+                                           hora_inicio = h.hora_inicio,
+                                           hora_fin = h.hora_fin
+                                       }).ToList()
+                               }).FirstOrDefaultAsync();
+
+            if (grupo == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(grupo);
+        }
+
+
+        [HttpGet("todos")]
+        public async Task<ActionResult<IEnumerable<GrupoConCursoPeriodo>>> GetTodosGrupos()
+        {
+            var grupos = await (from g in _context.Grupo
+                                join p in _context.Periodo on g.id_periodo equals p.id_periodo
+                                join c in _context.Curso on p.id_curso equals c.id_curso
+                                join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo
+                                join i in _context.Instructor on g.id_instructor equals i.id_instructor
+                                join u in _context.Usuario on i.id_usuario equals u.id_usuario
+                                select new GrupoConCursoPeriodo
+                                {
+                                    id_grupo = g.id_grupo,
+                                    nombre_grupo = g.nombre_grupo,
+                                    nombre_periodo = lp.nombre_periodo,
+                                    fecha_inicio_periodo = p.fecha_inicio_periodo,
+                                    fecha_fin_periodo = p.fecha_fin_periodo,
+                                    nombre_curso = c.nombre_curso
+                                }).ToListAsync();
+
+            return Ok(grupos);
         }
 
 

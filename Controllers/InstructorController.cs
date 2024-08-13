@@ -224,27 +224,42 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(instructores);
         }
 
-        [HttpPost("RegistrarHorarios")]
-        public async Task<IActionResult> RegistrarHorarios(HorariosInstructor model)
+
+        /*--------------------------REGISTRAR HORARIO DE INSTRUCTOR--------------------------*/
+        [HttpPost("RegistrarHorario")]
+        public async Task<IActionResult> RegistrarHorarios(RegistrarHorarioInstructor model)
         {
-            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (userIdString == null)
-            {
-                return Unauthorized();
-            }
-
-            if (!int.TryParse(userIdString, out int userId))
-            {
-                return BadRequest("Invalid user ID");
-            }
-
-            var instructor = await _context.Instructor.SingleOrDefaultAsync(i => i.id_usuario == userId);
+            // Obtener el instructor usando el id_instructor proporcionado
+            var instructor = await _context.Instructor.SingleOrDefaultAsync(i => i.id_instructor == model.id_instructor);
             if (instructor == null)
             {
                 return NotFound("Instructor no encontrado");
             }
 
-            foreach (var horario in model.Horarios)
+            // Verificar si el instructor ya está registrado en el curso y periodo
+            var registro = await _context.RegistroInstructor
+                .FirstOrDefaultAsync(r => r.id_instructor == instructor.id_instructor && r.id_curso == model.id_curso && r.id_periodo == model.id_periodo);
+
+            if (registro == null)
+            {
+                // Registrar al instructor en el curso y periodo
+                registro = new RegistroInstructor
+                {
+                    id_instructor = instructor.id_instructor,
+                    id_curso = model.id_curso,
+                    id_periodo = model.id_periodo,
+                    fecha_registro = DateTime.Now
+                };
+
+                _context.RegistroInstructor.Add(registro);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                return Ok("Instructor registrado previamente");
+            }
+
+            foreach (var horario in model.horarios)
             {
                 _context.HorarioPreferenteInstructor.Add(new HorarioPreferenteInstructor
                 {
@@ -255,50 +270,14 @@ namespace LudoLab_ConnectSys_Server.Controllers
                 });
             }
 
-            // Register instructor for the course and period
-            _context.RegistroInstructor.Add(new RegistroInstructor
-            {
-                id_instructor = instructor.id_instructor,
-                id_curso = model.CursoId,
-                id_periodo = model.PeriodoId
-            });
-
             await _context.SaveChangesAsync();
 
-            return Ok();
+            return Ok("Horarios registrados exitosamente");
         }
 
-        /*[HttpGet("DetallesById/{id_instructor}")]
-        public async Task<ActionResult<InstructorConDetallesCompleto>> GetInstructorDetallesById(int id_instructor)
-        {
-            var instructor = await _context.Instructor
-                .Where(i => i.id_instructor == id_instructor)
-                .Join(_context.Usuario, i => i.id_usuario, u => u.id_usuario, (i, u) => new { i, u })
-                .Select(iu => new InstructorConDetallesCompleto
-                {
-                    id_instructor = iu.i.id_instructor,
-                    nombre_usuario = iu.u.nombre_usuario,
-                    apellidos_usuario = iu.u.apellidos_usuario,
-                    cedula_usuario = iu.u.cedula_usuario,
-                    correo_usuario = iu.u.correo_usuario,
-                    celular_usuario = iu.u.celular_usuario,
-                    telefono_usuario = iu.u.telefono_usuario,
-                    id_cursos = new List<int>(), // Agrega el mapeo de id_cursos si es necesario
-                    id_periodos = new List<int>(), // Agrega el mapeo de id_periodos si es necesario
-                    cursos = new List<string>(), // Agrega el mapeo de cursos si es necesario
-                    periodos = new List<string>(), // Agrega el mapeo de periodos si es necesario
-                    horariosPreferentes = new List<HorarioPreferenteInstructor>() // Agrega el mapeo de horarios si es necesario
-                })
-                .FirstOrDefaultAsync();
 
-            if (instructor == null)
-            {
-                return NotFound();
-            }
 
-            return Ok(instructor);
-        }*/
-
+        /*----------------------OBTENER DETALLES DE INSTRUCTOR POR ID------------------------*/
         [HttpGet("DetallesById/{id_instructor}")]
         public async Task<ActionResult<InstructorConDetallesCompleto>> GetInstructorDetallesById(int id_instructor)
         {
@@ -325,7 +304,6 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
             return Ok(instructor);
         }
-
 
 
         private bool InstructorExists(int id_instructor)
@@ -598,6 +576,58 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
             return NoContent();
         }
+
+
+
+
+
+        [HttpGet("CursosInstructorById/{id_instructor}")]
+        public async Task<ActionResult<InstructorConDetalles>> GetCursosInstructorById(int id_instructor)
+        {
+            var instructor = await _context.Instructor
+                .Where(i => i.id_instructor == id_instructor)
+                .Join(_context.Usuario, i => i.id_usuario, u => u.id_usuario, (i, u) => new InstructorConDetalles
+                {
+                    id_instructor = i.id_instructor,
+                    nombre_usuario = u.nombre_usuario,
+                    apellidos_usuario = u.apellidos_usuario,
+                    correo_usuario = u.correo_usuario,
+                    id_cursos = new List<int>(),
+                    id_periodos = new List<int>(),
+                    cursos = new List<string>(),
+                    periodos = new List<string>(),
+                    grupos = new List<string>(),
+                    horariosPreferentes = new List<HorarioPreferenteInstructor>()
+                })
+                .FirstOrDefaultAsync();
+
+            if (instructor == null)
+            {
+                return NotFound();
+            }
+
+            // Obtener los detalles de los grupos, periodos y cursos en los que el instructor está involucrado
+            var detalles = await (from g in _context.Grupo
+                                  join p in _context.Periodo on g.id_periodo equals p.id_periodo
+                                  join c in _context.Curso on p.id_curso equals c.id_curso
+                                  join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo
+                                  where g.id_instructor == id_instructor
+                                  select new
+                                  {
+                                      g.id_grupo,
+                                      g.nombre_grupo,
+                                      CursoNombre = c.nombre_curso,
+                                      PeriodoNombre = lp.nombre_periodo
+                                  }).ToListAsync();
+
+            instructor.grupos = detalles.Select(d => d.nombre_grupo).ToList();
+            instructor.cursos = detalles.Select(d => d.CursoNombre).ToList();
+            instructor.periodos = detalles.Select(d => d.PeriodoNombre).ToList();
+
+            return Ok(instructor);
+        }
+
+
 
 
     }

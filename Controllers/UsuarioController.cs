@@ -4,6 +4,8 @@ using DirectorioDeArchivos.Shared;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using LudoLab_ConnectSys_Server.Data;
+using DocumentFormat.OpenXml.Math;
+
 
 namespace LudoLab_ConnectSys_Server.Controllers
 {
@@ -39,12 +41,69 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return usuario;
         }
 
+        /*
+
         // POST: api/Usuario
         [HttpPost]
         public async Task<ActionResult<Usuario>> PostUsuario(Usuario usuario)
         {
             _context.Usuario.Add(usuario);
             await _context.SaveChangesAsync();
+
+            return CreatedAtAction("GetUsuario", new { id_usuario = usuario.id_usuario }, usuario);
+        }*/
+
+
+        /*[HttpPost]
+        public async Task<ActionResult<Usuario>> PostUsuario(Usuario usuario, string tipoUsuario)
+        {
+            _context.Usuario.Add(usuario);
+            await _context.SaveChangesAsync();
+
+            // Asignar rol según el tipo de usuario
+            var rol = await _context.Rol.FirstOrDefaultAsync(r => r.NombreRol == tipoUsuario);
+            if (rol != null)
+            {
+                var usuarioRol = new UsuarioRol
+                {
+                    UsuarioId = usuario.id_usuario,
+                    RolId = rol.RolId,
+                    FechaAsignacion = DateTime.Now,
+                    estadoActivo = true
+                };
+                _context.UsuarioRol.Add(usuarioRol);
+                await _context.SaveChangesAsync();
+            }
+
+            return CreatedAtAction("GetUsuario", new { id_usuario = usuario.id_usuario }, usuario);
+        }*/
+
+        [HttpPost]
+        public async Task<ActionResult<Usuario>> PostUsuario(Usuario usuario, string tipoUsuario)
+        {
+            // Generar la contraseña temporal basada en la cédula del usuario
+            string temporaryPassword = $"Lc@{usuario.cedula_usuario}";
+
+            // Encriptar la contraseña utilizando BCrypt
+            usuario.contrasena = BCrypt.Net.BCrypt.HashPassword(temporaryPassword);
+
+            _context.Usuario.Add(usuario);
+            await _context.SaveChangesAsync();
+
+            // Asignar rol según el tipo de usuario
+            var rol = await _context.Rol.FirstOrDefaultAsync(r => r.NombreRol == tipoUsuario);
+            if (rol != null)
+            {
+                var usuarioRol = new UsuarioRol
+                {
+                    UsuarioId = usuario.id_usuario,
+                    RolId = rol.RolId,
+                    FechaAsignacion = DateTime.Now,
+                    estadoActivo = true
+                };
+                _context.UsuarioRol.Add(usuarioRol);
+                await _context.SaveChangesAsync();
+            }
 
             return CreatedAtAction("GetUsuario", new { id_usuario = usuario.id_usuario }, usuario);
         }

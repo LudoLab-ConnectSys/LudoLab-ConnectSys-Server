@@ -421,7 +421,44 @@ namespace LudoLab_ConnectSys_Server.Controllers
             var periodoActivo = await _context.Periodo.FirstOrDefaultAsync(p => p.id_curso == cursoId && p.activo == true);
             return periodoActivo?.id_periodo ?? 0;
         }
+        /*
+        [HttpGet("CursosInscritos")]
+        public async Task<ActionResult<List<CursoConPeriodoActivo>>> GetCursosInscritos()
+        {
+            var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userIdString == null)
+            {
+                return Unauthorized();
+            }
 
+            if (!int.TryParse(userIdString, out int userId))
+            {
+                return BadRequest("Invalid user ID");
+            }
+
+            var estudiante = await _context.Estudiante.SingleOrDefaultAsync(e => e.id_usuario == userId);
+            if (estudiante == null)
+            {
+                return NotFound("Estudiante no encontrado");
+            }
+
+            var cursosInscritos = await _context.Matricula
+                .Where(m => m.id_estudiante == estudiante.id_estudiante)
+                .Join(_context.Periodo, m => m.id_periodo, p => p.id_periodo, (m, p) => new { m, p })
+                .Join(_context.Curso, mp => mp.p.id_curso, c => c.id_curso, (mp, c) => new { mp, c })
+                .Join(_context.ListaPeriodo, mpc => mpc.mp.p.id_ListaPeriodo, lp => lp.id_lista_periodo, (mpc, lp) => new CursoConPeriodoActivo
+                {
+                    id_curso = mpc.c.id_curso,
+                    nombre_curso = mpc.c.nombre_curso,
+                    id_periodo = mpc.mp.p.id_periodo,
+                    nombre_periodo = lp.nombre_periodo
+                })
+                .ToListAsync();
+
+            return Ok(cursosInscritos);
+        }*/
+
+        // Método alternativo para obtener los cursos en los que el estudiante actualmente autenticado está inscrito
         [HttpGet("CursosInscritos")]
         public async Task<ActionResult<List<CursoConPeriodoActivo>>> GetCursosInscritos()
         {
@@ -457,6 +494,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
             return Ok(cursosInscritos);
         }
+
 
         [HttpGet("{id_grupo}/estudiantes")]
         public async Task<ActionResult<List<EstudianteConDetalles>>> GetEstudiantesPorGrupo(int id_grupo)
