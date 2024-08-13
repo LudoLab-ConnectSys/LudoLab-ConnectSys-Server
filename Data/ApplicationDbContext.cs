@@ -32,6 +32,7 @@ namespace LudoLab_ConnectSys_Server.Data
         public DbSet<Horario> Horario { get; set; }
         public DbSet<Matricula> Matricula { get; set; }
         public DbSet<RegistroInstructor> RegistroInstructor { get; set; }
+        //public DbSet<GrupoDto> GrupoDto { get; set; }
         //public DbSet<InstructorDto> InstructorDto { get; set; }
         public DbSet<Encuesta> Encuesta { get; set; }//para las encuestas
         public DbSet<Pregunta> Pregunta { get; set; }

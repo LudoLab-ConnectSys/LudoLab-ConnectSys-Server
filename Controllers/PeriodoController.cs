@@ -193,9 +193,10 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
         [HttpGet]
         [Route("PeriodoByName")]
-        public async Task<ActionResult<List<PeriodoConNombreCurso>>> GetSinglePeriodo([FromQuery] int id_lista_periodo, [FromQuery] string nombre_curso = null)
+        public async Task<ActionResult<PagedResult<PeriodoConNombreCurso>>> GetSinglePeriodo([FromQuery] int id_lista_periodo, [FromQuery] string nombre_curso = null, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 3)
         {
             Console.WriteLine($"ID Lista Periodo: {id_lista_periodo}, Nombre Curso: {nombre_curso}");
+
             var query = from p in _context.Periodo
                         join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo
                         join c in _context.Curso on p.id_curso equals c.id_curso
@@ -212,7 +213,6 @@ namespace LudoLab_ConnectSys_Server.Controllers
                             nombre_certificado = cert.nombre_certificado
                         };
 
-
             // Aplicar filtro por id_lista_periodo si es mayor que cero
             if (id_lista_periodo > 0)
             {
@@ -225,15 +225,30 @@ namespace LudoLab_ConnectSys_Server.Controllers
                 query = query.Where(p => p.nombre_curso.Contains(nombre_curso));
             }
 
-            var lista = await query.OrderByDescending(p => p.id_periodo).ToListAsync();
+            // Obtener el total de registros
+            var totalRecords = await query.CountAsync();
 
-            if (lista == null || lista.Count == 0)
+            // Calcular el total de páginas
+            var totalPages = (int)Math.Ceiling(totalRecords / (double)pageSize);
+
+            // Aplicar paginación
+            var items = await query
+                .OrderByDescending(p => p.id_periodo)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var pagedResult = new PagedResult<PeriodoConNombreCurso>
             {
-                return NotFound("No se encontraron coincidencias :/");
-            }
+                Items = items,
+                TotalPages = totalPages,
+                CurrentPage = pageNumber
+            };
 
-            return Ok(lista);
+            return Ok(pagedResult);
         }
+
+
 
 
         [HttpGet]
@@ -338,4 +353,12 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
 
     }
+    public class PagedResult<T>
+    {
+        public List<T> Items { get; set; }
+        public int TotalPages { get; set; }
+        public int CurrentPage { get; set; }
+    }
+
+
 }

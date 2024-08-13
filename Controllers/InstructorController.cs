@@ -312,24 +312,18 @@ namespace LudoLab_ConnectSys_Server.Controllers
         }
 
         [HttpGet("instructoresPracticas")]
-        public async Task<ActionResult<IEnumerable<InstructorDto>>> GetInstructoresPracticas(int pageIndex, int pageSize)
+        public async Task<ActionResult<IEnumerable<InstructorDto>>> GetInstructoresPracticas(int pageIndex, int pageSize, int id_periodo)
         {
             var instructoresQuery = (
                 from instructor in _context.Instructor
                 join usuario in _context.Usuario on instructor.id_usuario equals usuario.id_usuario
-                select new InstructorDto
+                select new
                 {
-                    IdInstructor = instructor.id_instructor,
-                    CedulaUsuario = usuario.cedula_usuario ?? string.Empty,
-                    NombreUsuario = usuario.nombre_usuario ?? string.Empty,
-                    ApellidosUsuario = usuario.apellidos_usuario ?? string.Empty,
-                    EdadUsuario = usuario.edad_usuario,
-                    CorreoUsuario = usuario.correo_usuario ?? string.Empty,
-                    CelularUsuario = usuario.celular_usuario ?? string.Empty,
-                    TelefonoUsuario = usuario.telefono_usuario ?? string.Empty,
+                    Instructor = instructor,
+                    Usuario = usuario,
                     Grupos = (
                         from grupo in _context.Grupo
-                        where grupo.id_instructor == instructor.id_instructor
+                        where grupo.id_instructor == instructor.id_instructor && grupo.id_periodo == id_periodo
                         select new GrupoDto
                         {
                             IdGrupo = grupo.id_grupo,
@@ -347,12 +341,26 @@ namespace LudoLab_ConnectSys_Server.Controllers
                                         })
                                         .ToList(),
                         }
-                    ).ToList(),
-                    TotalHorasGanadas = _context.Horas_instructor
-                                            .Where(h => h.id_instructor == instructor.id_instructor)
-                                            .Sum(h => (int?)h.horas_ganadas_instructor) ?? 0
+                    ).ToList()
                 }
-            );
+            )
+            .Where(x => x.Grupos.Any()) // Filtrar instructores que tienen grupos en el período dado
+            .Select(x => new InstructorDto
+            {
+                IdInstructor = x.Instructor.id_instructor,
+                CedulaUsuario = x.Usuario.cedula_usuario ?? string.Empty,
+                NombreUsuario = x.Usuario.nombre_usuario ?? string.Empty,
+                ApellidosUsuario = x.Usuario.apellidos_usuario ?? string.Empty,
+                EdadUsuario = x.Usuario.edad_usuario,
+                CorreoUsuario = x.Usuario.correo_usuario ?? string.Empty,
+                CelularUsuario = x.Usuario.celular_usuario ?? string.Empty,
+                TelefonoUsuario = x.Usuario.telefono_usuario ?? string.Empty,
+                Grupos = x.Grupos,
+                TotalHorasGanadas = _context.Horas_instructor
+                                        .Where(h => h.id_instructor == x.Instructor.id_instructor)
+                                        .Sum(h => (int?)h.horas_ganadas_instructor) ?? 0,
+                IdPeriodo = id_periodo
+            });
 
             var totalInstructores = await instructoresQuery.CountAsync();
 
@@ -626,6 +634,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
             return Ok(instructor);
         }
+
 
 
 
