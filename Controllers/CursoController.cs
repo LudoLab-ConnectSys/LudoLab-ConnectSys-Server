@@ -5,6 +5,7 @@ using LudoLab_ConnectSys_Server.Data;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Data.SqlClient;
 
 namespace LudoLab_ConnectSys_Server.Controllers
 {
@@ -76,16 +77,33 @@ namespace LudoLab_ConnectSys_Server.Controllers
         [HttpDelete("{id_curso}")]
         public async Task<IActionResult> DeleteCurso(int id_curso)
         {
+            // Verificar si el curso existe
             var curso = await _context.Curso.FindAsync(id_curso);
             if (curso == null)
             {
-                return NotFound();
+                return NotFound(new { message = "Curso no encontrado" });
             }
 
-            _context.Curso.Remove(curso);
-            await _context.SaveChangesAsync();
+            // Verificar dependencias: Periodos y Estudiantes
+            var tienePeriodos = await _context.Periodo.AnyAsync(p => p.id_curso == id_curso);
+            var tieneEstudiantes = await _context.Matricula.AnyAsync(m => m.id_curso == id_curso);
 
-            return NoContent();
+            if (tienePeriodos || tieneEstudiantes)
+            {
+                return Conflict(new { message = "No es posible eliminar el curso porque tiene registros asociados en otras tablas (periodos o estudiantes)." });
+            }
+
+            try
+            {
+                _context.Curso.Remove(curso);
+                await _context.SaveChangesAsync();
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                // Manejo general de errores
+                return StatusCode(StatusCodes.Status500InternalServerError, $"Error al eliminar el curso: {ex.Message}");
+            }
         }
 
         [HttpGet("CursosConPeriodosActivos")]
@@ -131,6 +149,23 @@ namespace LudoLab_ConnectSys_Server.Controllers
             }
 
             return Ok(grupo);
+        }
+
+
+        [HttpGet("{id_curso}/Nombre")]
+        public async Task<ActionResult<string>> GetNombreCurso(int id_curso)
+        {
+            var curso = await _context.Curso
+                                      .Where(c => c.id_curso == id_curso)
+                                      .Select(c => c.nombre_curso)
+                                      .FirstOrDefaultAsync();
+
+            if (curso == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(curso);
         }
 
         private bool CursoExists(int id_curso)
