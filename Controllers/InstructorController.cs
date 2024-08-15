@@ -185,6 +185,31 @@ namespace LudoLab_ConnectSys_Server.Controllers
         }
 
 
+        /*[HttpGet("sin-grupo/{id_curso}/{id_periodo}")]
+        public async Task<ActionResult<IEnumerable<InstructorConDetalles>>> GetInstructoresSinGrupo(int id_curso, int id_periodo)
+        {
+            var instructoresSinGrupo = await _context.RegistroInstructor
+                .Where(ri => ri.id_curso == id_curso && ri.id_periodo == id_periodo)
+                .Join(_context.Instructor, ri => ri.id_instructor, i => i.id_instructor, (ri, i) => i)
+                .Where(i => !_context.Grupo.Any(g => g.id_instructor == i.id_instructor && g.id_periodo == id_periodo))
+                .Join(_context.Usuario, i => i.id_usuario, u => u.id_usuario, (i, u) => new { i, u })
+                .Select(iu => new InstructorConDetalles
+                {
+                    id_instructor = iu.i.id_instructor,
+                    nombre_usuario = iu.u.nombre_usuario,
+                    horariosPreferentes = _context.HorarioPreferenteInstructor
+                        .Where(h => h.id_instructor == iu.i.id_instructor)
+                        .Select(h => new HorarioPreferenteInstructor
+                        {
+                            dia_semana = h.dia_semana,
+                            hora_inicio = h.hora_inicio,
+                            hora_fin = h.hora_fin
+                        }).ToList()
+                }).ToListAsync();
+
+            return Ok(instructoresSinGrupo);
+        }*/
+
         [HttpGet("sin-grupo/{id_curso}/{id_periodo}")]
         public async Task<ActionResult<IEnumerable<InstructorConDetalles>>> GetInstructoresSinGrupo(int id_curso, int id_periodo)
         {
@@ -197,6 +222,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
                 {
                     id_instructor = iu.i.id_instructor,
                     nombre_usuario = iu.u.nombre_usuario,
+                    apellidos_usuario = iu.u.apellidos_usuario, // Añadido para incluir apellidos
                     horariosPreferentes = _context.HorarioPreferenteInstructor
                         .Where(h => h.id_instructor == iu.i.id_instructor)
                         .Select(h => new HorarioPreferenteInstructor

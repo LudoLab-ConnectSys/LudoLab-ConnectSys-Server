@@ -132,6 +132,32 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(periodo);
         }
 
+        /*-------- DETALLES CON CURSO --------*/
+
+        [HttpGet("detalles-con-curso/{id_periodo}")]
+        public async Task<ActionResult<PeriodoConNombreCurso>> GetPeriodoConCursoDetalles(int id_periodo)
+        {
+            var periodoConCurso = await _context.Periodo
+                .Where(p => p.id_periodo == id_periodo)
+                .Select(p => new PeriodoConNombreCurso
+                {
+                    id_periodo = p.id_periodo,
+                    nombre_periodo = (from lp in _context.ListaPeriodo where lp.id_lista_periodo == p.id_ListaPeriodo select lp.nombre_periodo).FirstOrDefault(),
+                    nombre_curso = (from c in _context.Curso where c.id_curso == p.id_curso select c.nombre_curso).FirstOrDefault(),
+                    fecha_inicio_periodo = p.fecha_inicio_periodo,
+                    fecha_fin_periodo = p.fecha_fin_periodo,
+                    duracion_periodo_horas = p.duracion_periodo_horas
+                })
+                .FirstOrDefaultAsync();
+
+            if (periodoConCurso == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(periodoConCurso);
+        }
+
         [HttpGet("Curso/{id_curso}")]
         public async Task<ActionResult<List<PeriodoConNombreCurso>>> GetPeriodosByCurso(int id_curso)
         {

@@ -352,6 +352,31 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(cursosInscritos);
         }
 
+        /*[HttpGet("sin-grupo/{id_curso}/{id_periodo}")]
+        public async Task<ActionResult<IEnumerable<EstudianteConDetalles>>> GetEstudiantesSinGrupo(int id_curso, int id_periodo)
+        {
+            var estudiantesSinGrupo = await _context.Matricula
+                .Where(m => m.id_curso == id_curso && m.id_periodo == id_periodo)
+                .Join(_context.Estudiante, m => m.id_estudiante, e => e.id_estudiante, (m, e) => e)
+                .Where(e => e.id_grupo == null)
+                .Join(_context.Usuario, e => e.id_usuario, u => u.id_usuario, (e, u) => new { e, u })
+                .Select(eu => new EstudianteConDetalles
+                {
+                    id_estudiante = eu.e.id_estudiante,
+                    nombre_usuario = eu.u.nombre_usuario,
+                    horariosPreferentes = _context.HorarioPreferenteEstudiante
+                        .Where(h => h.id_estudiante == eu.e.id_estudiante)
+                        .Select(h => new HorarioPreferenteEstudiante
+                        {
+                            dia_semana = h.dia_semana,
+                            hora_inicio = h.hora_inicio,
+                            hora_fin = h.hora_fin
+                        }).ToList()
+                }).ToListAsync();
+
+            return Ok(estudiantesSinGrupo);
+        }*/
+
         [HttpGet("sin-grupo/{id_curso}/{id_periodo}")]
         public async Task<ActionResult<IEnumerable<EstudianteConDetalles>>> GetEstudiantesSinGrupo(int id_curso, int id_periodo)
         {
@@ -364,6 +389,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
                 {
                     id_estudiante = eu.e.id_estudiante,
                     nombre_usuario = eu.u.nombre_usuario,
+                    apellidos_usuario = eu.u.apellidos_usuario, // Añadido para incluir apellidos
                     horariosPreferentes = _context.HorarioPreferenteEstudiante
                         .Where(h => h.id_estudiante == eu.e.id_estudiante)
                         .Select(h => new HorarioPreferenteEstudiante
@@ -415,6 +441,60 @@ namespace LudoLab_ConnectSys_Server.Controllers
             await _context.SaveChangesAsync();
             return Ok();
         }
+
+        /*-------REGISTRAR HORARIO ESTUDIANTE--------------------------*/
+        [HttpPost("RegistrarHorarioEstudiante")]
+        public async Task<IActionResult> RegistrarHorariosEstudiante(RegistrarHorarioEstudiante model)
+        {
+            // Obtener el estudiante usando el id_estudiante proporcionado
+            var estudiante = await _context.Estudiante.SingleOrDefaultAsync(e => e.id_estudiante == model.id_estudiante);
+            if (estudiante == null)
+            {
+                return NotFound("Estudiante no encontrado");
+            }
+
+            // Verificar si el estudiante ya está registrado en el curso y periodo
+            var matricula = await _context.Matricula
+                .FirstOrDefaultAsync(m => m.id_estudiante == estudiante.id_estudiante && m.id_curso == model.id_curso && m.id_periodo == model.id_periodo);
+
+            if (matricula == null)
+            {
+                // Inscribir al estudiante en el curso y periodo
+                matricula = new Matricula
+                {
+                    id_estudiante = estudiante.id_estudiante,
+                    id_curso = model.id_curso,
+                    id_periodo = model.id_periodo,
+                    fecha_inscripcion = DateTime.Now
+                };
+
+                _context.Matricula.Add(matricula);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                // Retornar un estado de conflicto si el estudiante ya está registrado
+                return Conflict("Estudiante registrado previamente en el curso y periodo");
+            }
+
+            foreach (var horario in model.horarios)
+            {
+                _context.HorarioPreferenteEstudiante.Add(new HorarioPreferenteEstudiante
+                {
+                    id_estudiante = estudiante.id_estudiante,
+                    dia_semana = horario.dia_semana,
+                    hora_inicio = horario.hora_inicio,
+                    hora_fin = horario.hora_fin
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok("Horarios registrados exitosamente");
+        }
+
+
+
 
         private async Task<int> ObtenerPeriodoActivo(int cursoId)
         {
