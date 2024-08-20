@@ -51,6 +51,32 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return CreatedAtAction("GetInstructor", new { id_instructor = instructor.id_instructor }, instructor);
         }
 
+       /* [HttpPost]
+        public async Task<ActionResult<Instructor>> PostInstructor(Instructor instructor)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                // Añadir el nuevo instructor
+                _context.Instructor.Add(instructor);
+                await _context.SaveChangesAsync();
+
+                
+                // la creación de un horario, o cualquier otra entidad relacionada.
+
+                // Confirmar la transacción si todo fue bien
+                await transaction.CommitAsync();
+
+                return CreatedAtAction("GetInstructor", new { id_instructor = instructor.id_instructor }, instructor);
+            }
+            catch (Exception)
+            {
+                // Revertir la transacción en caso de fallo
+                await transaction.RollbackAsync();
+                return BadRequest("Error al crear el instructor.");
+            }
+        }*/
+
         [HttpPut("{id_instructor}")]
         public async Task<IActionResult> UpdateInstructor(int id_instructor, [FromBody] InstructorUpdateModel model)
         {
@@ -135,11 +161,79 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(instructores);
         }*/
 
+        /*[HttpGet("Detalles")]
+         public async Task<ActionResult<PagedResponse<InstructorConDetallesCompleto>>> GetInstructoresConDetalles([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+         {
+             var query = _context.Instructor
+                 .Join(_context.Usuario, i => i.id_usuario, u => u.id_usuario, (i, u) => new { i, u })
+                 .GroupBy(x => new { x.i.id_instructor, x.u.nombre_usuario, x.u.apellidos_usuario, x.u.correo_usuario, x.u.cedula_usuario })
+                 .Select(group => new InstructorConDetallesCompleto
+                 {
+                     id_instructor = group.Key.id_instructor,
+                     nombre_usuario = group.Key.nombre_usuario,
+                     apellidos_usuario = group.Key.apellidos_usuario,
+                     correo_usuario = group.Key.correo_usuario,
+                     cedula_usuario = group.Key.cedula_usuario, // Incluimos el número de cédula
+                     cursos = _context.RegistroInstructor
+                                 .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                 .Join(_context.Curso, ri => ri.id_curso, c => c.id_curso, (ri, c) => c.nombre_curso)
+                                 .ToList(),
+                     periodos = _context.RegistroInstructor
+                                 .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                 .Join(_context.Periodo, ri => ri.id_periodo, p => p.id_periodo, (ri, p) => _context.ListaPeriodo
+                                         .Where(lp => lp.id_lista_periodo == p.id_ListaPeriodo)
+                                         .Select(lp => lp.nombre_periodo)
+                                         .FirstOrDefault())
+                                 .ToList(),
+                     id_cursos = _context.RegistroInstructor
+                                 .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                 .Select(ri => ri.id_curso)
+                                 .ToList(),
+                     id_periodos = _context.RegistroInstructor
+                                 .Where(ri => ri.id_instructor == group.Key.id_instructor)
+                                 .Select(ri => ri.id_periodo)
+                                 .ToList()
+                 });
+
+             var totalRecords = await query.CountAsync();
+             var instructors = await query
+                 .Skip((pageNumber - 1) * pageSize)
+                 .Take(pageSize)
+                 .ToListAsync();
+
+             var pagedResponse = new PagedResponse<InstructorConDetallesCompleto>
+             {
+                 Items = instructors,
+                 TotalCount = totalRecords
+             };
+
+             return Ok(pagedResponse);
+         }*/
+
         [HttpGet("Detalles")]
-        public async Task<ActionResult<PagedResponse<InstructorConDetallesCompleto>>> GetInstructoresConDetalles([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<PagedResponse<InstructorConDetallesCompleto>>> GetInstructoresConDetalles(int pageNumber = 1, int pageSize = 10, int cursoId = 0, int periodoId = 0)
         {
-            var query = _context.Instructor
-                .Join(_context.Usuario, i => i.id_usuario, u => u.id_usuario, (i, u) => new { i, u })
+            var instructoresQuery = from i in _context.Instructor
+                                    join u in _context.Usuario on i.id_usuario equals u.id_usuario
+                                    join ri in _context.RegistroInstructor on i.id_instructor equals ri.id_instructor into riGroup
+                                    from ri in riGroup.DefaultIfEmpty()
+                                    join p in _context.Periodo on ri.id_periodo equals p.id_periodo into pGroup
+                                    from p in pGroup.DefaultIfEmpty()
+                                    join c in _context.Curso on ri.id_curso equals c.id_curso into cGroup
+                                    from c in cGroup.DefaultIfEmpty()
+                                    join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo into lpGroup
+                                    from lp in lpGroup.DefaultIfEmpty()
+                                    where (cursoId == 0 || ri.id_curso == cursoId) && (periodoId == 0 || p.id_periodo == periodoId)
+                                    select new
+                                    {
+                                        i,
+                                        u,
+                                        ri,
+                                        c,
+                                        lp
+                                    };
+
+            var instructoresGrouped = instructoresQuery
                 .GroupBy(x => new { x.i.id_instructor, x.u.nombre_usuario, x.u.apellidos_usuario, x.u.correo_usuario, x.u.cedula_usuario })
                 .Select(group => new InstructorConDetallesCompleto
                 {
@@ -147,42 +241,29 @@ namespace LudoLab_ConnectSys_Server.Controllers
                     nombre_usuario = group.Key.nombre_usuario,
                     apellidos_usuario = group.Key.apellidos_usuario,
                     correo_usuario = group.Key.correo_usuario,
-                    cedula_usuario = group.Key.cedula_usuario, // Incluimos el número de cédula
-                    cursos = _context.RegistroInstructor
-                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
-                                .Join(_context.Curso, ri => ri.id_curso, c => c.id_curso, (ri, c) => c.nombre_curso)
-                                .ToList(),
-                    periodos = _context.RegistroInstructor
-                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
-                                .Join(_context.Periodo, ri => ri.id_periodo, p => p.id_periodo, (ri, p) => _context.ListaPeriodo
-                                        .Where(lp => lp.id_lista_periodo == p.id_ListaPeriodo)
-                                        .Select(lp => lp.nombre_periodo)
-                                        .FirstOrDefault())
-                                .ToList(),
-                    id_cursos = _context.RegistroInstructor
-                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
-                                .Select(ri => ri.id_curso)
-                                .ToList(),
-                    id_periodos = _context.RegistroInstructor
-                                .Where(ri => ri.id_instructor == group.Key.id_instructor)
-                                .Select(ri => ri.id_periodo)
-                                .ToList()
+                    cedula_usuario = group.Key.cedula_usuario,
+                    cursos = group.Where(g => g.c != null).Select(g => g.c.nombre_curso).Distinct().ToList(),
+                    periodos = group.Where(g => g.lp != null).Select(g => g.lp.nombre_periodo).Distinct().ToList(),
+                    id_cursos = group.Where(g => g.c != null).Select(g => g.c.id_curso).Distinct().ToList(),
+                    id_periodos = group.Where(g => g.lp != null).Select(g => g.lp.id_lista_periodo).Distinct().ToList()
                 });
 
-            var totalRecords = await query.CountAsync();
-            var instructors = await query
+            var totalItems = await instructoresGrouped.CountAsync();
+            var instructoresPaged = await instructoresGrouped
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
 
-            var pagedResponse = new PagedResponse<InstructorConDetallesCompleto>
+            var response = new PagedResponse<InstructorConDetallesCompleto>
             {
-                Items = instructors,
-                TotalCount = totalRecords
+                Items = instructoresPaged,
+                TotalCount = totalItems
             };
 
-            return Ok(pagedResponse);
+            return Ok(response);
         }
+
+
 
 
         /*[HttpGet("sin-grupo/{id_curso}/{id_periodo}")]
@@ -252,7 +333,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
 
         /*--------------------------REGISTRAR HORARIO DE INSTRUCTOR--------------------------*/
-        [HttpPost("RegistrarHorario")]
+        /*[HttpPost("RegistrarHorario")]
         public async Task<IActionResult> RegistrarHorarios(RegistrarHorarioInstructor model)
         {
             // Obtener el instructor usando el id_instructor proporcionado
@@ -299,7 +380,54 @@ namespace LudoLab_ConnectSys_Server.Controllers
             await _context.SaveChangesAsync();
 
             return Ok("Horarios registrados exitosamente");
+        }*/
+
+        [HttpPost("RegistrarHorario")]
+        public async Task<IActionResult> RegistrarHorarios(RegistrarHorarioInstructor model)
+        {
+            // Obtener el instructor usando el id_instructor proporcionado
+            var instructor = await _context.Instructor.SingleOrDefaultAsync(i => i.id_instructor == model.id_instructor);
+            if (instructor == null)
+            {
+                return NotFound("Instructor no encontrado");
+            }
+
+            // Verificar si el instructor ya está registrado en el curso y periodo
+            var registro = await _context.RegistroInstructor
+                .FirstOrDefaultAsync(r => r.id_instructor == instructor.id_instructor && r.id_curso == model.id_curso && r.id_periodo == model.id_periodo);
+
+            if (registro == null)
+            {
+                // Si no existe un registro, registrar al instructor en el curso y periodo
+                registro = new RegistroInstructor
+                {
+                    id_instructor = instructor.id_instructor,
+                    id_curso = model.id_curso,
+                    id_periodo = model.id_periodo,
+                    fecha_registro = DateTime.Now
+                };
+
+                _context.RegistroInstructor.Add(registro);
+                await _context.SaveChangesAsync();
+            }
+
+            // Registrar los horarios preferentes del instructor
+            foreach (var horario in model.horarios)
+            {
+                _context.HorarioPreferenteInstructor.Add(new HorarioPreferenteInstructor
+                {
+                    id_instructor = instructor.id_instructor,
+                    dia_semana = horario.dia_semana,
+                    hora_inicio = horario.hora_inicio,
+                    hora_fin = horario.hora_fin
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok("Horarios registrados exitosamente");
         }
+
 
 
 
