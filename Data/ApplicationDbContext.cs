@@ -49,6 +49,7 @@ namespace LudoLab_ConnectSys_Server.Data
             modelBuilder.Entity<UsuarioRol>()
                 .HasKey(ur => new { ur.UsuarioId, ur.RolId });
         }
+        public DbSet<Opcion> Opcion { get; set; }
     }
 
     

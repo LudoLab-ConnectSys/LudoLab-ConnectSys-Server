@@ -46,24 +46,36 @@ namespace LudoLab_ConnectSys_Server.Controllers
         }
 
         [HttpPost("respuestas")]
-        public async Task<IActionResult> PostRespuestas(List<RespuestaDto> respuestas)
+        public async Task<IActionResult> PostRespuestas(List<RespuestaDto> respuestasEnviar)
         {
-            if (respuestas == null || !respuestas.Any())
+            if (respuestasEnviar == null || !respuestasEnviar.Any())
             {
                 return BadRequest("No se han proporcionado respuestas.");
             }
 
-            var respuestasEntities = respuestas.Select(r => new Respuesta
+            try
             {
-                id_estudiante = r.id_estudiante,
-                id_pregunta = r.id_pregunta,
-                respuesta = r.texto_respuesta
-            }).ToList();
+                var respuestasEntities = respuestasEnviar.Select(r => new Respuesta
+                {
+                    id_estudiante = r.id_estudiante,
+                    id_pregunta = r.id_pregunta,
+                    id_opcion = r.id_opcion
+                }).ToList();
 
-            _context.Respuesta.AddRange(respuestasEntities);
-            await _context.SaveChangesAsync();
-            return Ok();
+                _context.Respuesta.AddRange(respuestasEntities);
+                await _context.SaveChangesAsync();
+
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                // Log de la excepción completo para más detalles
+                Console.WriteLine($"Error al guardar respuestas: {ex}");
+                return StatusCode(500, $"Error interno del servidor: {ex.Message}");
+            }
         }
+
+
 
 
         // GET: api/Encuesta
@@ -79,99 +91,71 @@ namespace LudoLab_ConnectSys_Server.Controllers
         {
             try
             {
-                // Obtener todos los tutores del periodo y agruparlos por tutor (incluyendo todos los grupos)
-                var tutores = await _context.Instructor
-                    .Join(_context.Grupo,
-                        instructor => instructor.id_instructor,
-                        grupo => grupo.id_instructor,
-                        (instructor, grupo) => new { instructor, grupo })
-                    .Join(_context.Usuario,
-                        inst => inst.instructor.id_usuario,
-                        usuario => usuario.id_usuario,
-                        (inst, usuario) => new { inst.instructor, inst.grupo, usuario })
-                    .Where(x => x.grupo.id_periodo == idPeriodoF)
-                    .GroupBy(x => new { x.instructor.id_instructor, x.usuario.nombre_usuario, x.usuario.apellidos_usuario })
-                    .Select(g => new
-                    {
-                        g.Key.id_instructor,
-                        NombreCompletoTutor = $"{g.Key.nombre_usuario} {g.Key.apellidos_usuario}",
-                        Grupos = g.Select(x => x.grupo.id_grupo).ToList()
-                    })
-                    .ToListAsync();
-
-                // Obtener la sumatoria de respuestas para todos los grupos del periodo y encuesta específica
+                // Obtener todas las respuestas relevantes basadas en el periodo y la encuesta
                 var respuestas = await _context.Respuesta
                     .Join(_context.Pregunta,
                         respuesta => respuesta.id_pregunta,
                         pregunta => pregunta.id_pregunta,
                         (respuesta, pregunta) => new { respuesta, pregunta })
+                    .Join(_context.Opcion,
+                        resp => resp.respuesta.id_opcion,
+                        opcion => opcion.id_opcion,
+                        (resp, opcion) => new { resp.respuesta, resp.pregunta, opcion })
                     .Join(_context.Estudiante,
                         resp => resp.respuesta.id_estudiante,
                         estudiante => estudiante.id_estudiante,
-                        (resp, estudiante) => new { resp.respuesta, resp.pregunta, estudiante })
+                        (resp, estudiante) => new { resp.respuesta, resp.pregunta, resp.opcion, estudiante })
                     .Join(_context.Grupo,
                         est => est.estudiante.id_grupo,
                         grupo => grupo.id_grupo,
-                        (est, grupo) => new { est.respuesta, est.pregunta, est.estudiante, grupo })
+                        (est, grupo) => new { est.respuesta, est.pregunta, est.opcion, est.estudiante, grupo })
                     .Where(x => x.pregunta.id_encuesta == id_encuesta && x.grupo.id_periodo == idPeriodoF)
                     .ToListAsync();
 
-                // Agrupar respuestas por tutor y calcular la sumatoria y las notas por pregunta
-                var sumatoriaPorTutores = tutores
-                    .Select(tutor => new
+                // Obtener el número de personas que respondieron la encuesta
+                var numeroDePersonas = respuestas
+                    .Select(x => x.respuesta.id_estudiante)
+                    .Distinct()
+                    .Count();
+
+                // Calcular la sumatoria total de las respuestas (valores de las opciones) en todo el periodo y encuesta
+                var sumatoriaTotal = respuestas
+                    .Sum(x => x.opcion.valor_numero);
+
+                // Calcular la sumatoria por pregunta y por opción
+                var sumatoriaPorPregunta = respuestas
+                    .GroupBy(x => new { x.pregunta.id_pregunta, x.pregunta.texto_pregunta })
+                    .Select(g => new
                     {
-                        tutor.NombreCompletoTutor,
-                        Sumatoria = respuestas
-                            .Where(x => tutor.Grupos.Contains(x.grupo.id_grupo))
-                            .Sum(x =>
+                        g.Key.id_pregunta,
+                        g.Key.texto_pregunta,
+                        SumatoriaPorPregunta = g.Sum(x => x.opcion.valor_numero),
+                        SumatoriaPorOpcion = g
+                            .GroupBy(x => new { x.opcion.id_opcion, x.opcion.texto_opcion })
+                            .Select(o => new
                             {
-                                int result;
-                                if (int.TryParse(x.respuesta.respuesta, out result))
-                                {
-                                    return result;
-                                }
-                                return 0;
-                            }),
-                        NotasPorPregunta = respuestas
-                            .Where(x => tutor.Grupos.Contains(x.grupo.id_grupo))
-                            .GroupBy(x => new { x.pregunta.id_pregunta, x.pregunta.texto_pregunta })
-                            .Select(g => new
-                            {
-                                g.Key.id_pregunta,
-                                g.Key.texto_pregunta,
-                                Nota = g.Sum(x =>
-                                {
-                                    int result;
-                                    if (int.TryParse(x.respuesta.respuesta, out result))
-                                    {
-                                        return result;
-                                    }
-                                    return 0;
-                                })
+                                o.Key.id_opcion,
+                                o.Key.texto_opcion,
+                                Sumatoria = o.Sum(x => x.opcion.valor_numero),
+                                NumeroDeRespuestas = o.Count()
                             })
                             .ToList()
                     })
                     .ToList();
 
-                // Obtener la sumatoria total para todo el periodo y la encuesta específica
-                var sumatoriaTotal = respuestas
-                    .Sum(x =>
-                    {
-                        int result;
-                        if (int.TryParse(x.respuesta.respuesta, out result))
-                        {
-                            return result;
-                        }
-                        return 0;
-                    });
-
-                return Ok(new { SumatoriaTutores = sumatoriaPorTutores, SumatoriaTotalPeriodo = sumatoriaTotal });
+                return Ok(new
+                {
+                    NumeroDePersonas = numeroDePersonas,
+                    SumatoriaTotalPeriodo = sumatoriaTotal,
+                    SumatoriaPorPregunta = sumatoriaPorPregunta
+                });
             }
             catch (Exception ex)
             {
                 return BadRequest($"Error al calcular la sumatoria: {ex.Message}");
             }
         }
+
 
 
 
@@ -201,10 +185,24 @@ namespace LudoLab_ConnectSys_Server.Controllers
         }
 
         [HttpGet("preguntasporID/{id}")]
-        public async Task<ActionResult<List<Pregunta>>> GetPreguntasporID(int id)
+        public async Task<ActionResult<List<PreguntaConOpciones>>> GetPreguntasporID(int id)
         {
             var preguntas = await _context.Pregunta
                 .Where(p => p.id_encuesta == id)
+                .Select(p => new PreguntaConOpciones
+                {
+                    IdPregunta = p.id_pregunta,
+                    TextoPregunta = p.texto_pregunta,
+                    Opciones = _context.Opcion
+                        .Where(o => o.id_pregunta == p.id_pregunta)
+                        .Select(o => new OpcionDto
+                        {
+                            idOption = o.id_opcion,
+                            Texto = o.texto_opcion,
+                            Valor = o.valor_numero
+                        })
+                        .ToList()
+                })
                 .ToListAsync();
 
             return Ok(preguntas);
@@ -212,9 +210,9 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
         // PUT: api/Encuesta/ActualizarPreguntas
         [HttpPut("ActualizarPreguntas/{id_encuesta}")]
-        public async Task<IActionResult> ActualizarPreguntas(int id_encuesta, [FromBody] List<Pregunta> preguntas)
+        public async Task<IActionResult> ActualizarPreguntas(int id_encuesta, [FromBody] List<PreguntaConOpciones> preguntasConOpciones)
         {
-            if (preguntas == null || !preguntas.Any())
+            if (preguntasConOpciones == null || !preguntasConOpciones.Any())
             {
                 return BadRequest("La lista de preguntas no puede estar vacía.");
             }
@@ -225,15 +223,33 @@ namespace LudoLab_ConnectSys_Server.Controllers
                 return NotFound("Encuesta no encontrada.");
             }
 
-            foreach (var pregunta in preguntas)
+            foreach (var preguntaConOpciones in preguntasConOpciones)
             {
                 var preguntaExistente = await _context.Pregunta
-                    .FirstOrDefaultAsync(p => p.id_pregunta == pregunta.id_pregunta && p.id_encuesta == id_encuesta);
+                    .FirstOrDefaultAsync(p => p.id_pregunta == preguntaConOpciones.IdPregunta && p.id_encuesta == id_encuesta);
 
                 if (preguntaExistente != null)
                 {
-                    preguntaExistente.texto_pregunta = pregunta.texto_pregunta;
+                    preguntaExistente.texto_pregunta = preguntaConOpciones.TextoPregunta;
                     _context.Pregunta.Update(preguntaExistente);
+
+                    var opcionesExistentes = await _context.Opcion
+                        .Where(o => o.id_pregunta == preguntaConOpciones.IdPregunta)
+                        .ToListAsync();
+
+                    // Eliminar opciones antiguas
+                    _context.Opcion.RemoveRange(opcionesExistentes);
+
+                    // Agregar nuevas opciones
+                    foreach (var opcion in preguntaConOpciones.Opciones)
+                    {
+                        _context.Opcion.Add(new Opcion
+                        {
+                            id_pregunta = preguntaConOpciones.IdPregunta,
+                            texto_opcion = opcion.Texto,
+                            valor_numero = opcion.Valor
+                        });
+                    }
                 }
             }
 
@@ -249,6 +265,7 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return NoContent();
         }
 
+
         /*------------------------- API para crear encuesta -------------------------*/
         // POST: api/Encuesta/CrearEncuesta
         [HttpPost("CrearEncuesta")]
@@ -259,43 +276,104 @@ namespace LudoLab_ConnectSys_Server.Controllers
                 return BadRequest("Datos inválidos para crear la encuesta.");
             }
 
-            var nuevaEncuesta = new Encuesta
-            {
-                titulo = model.Titulo,
-                fecha_creacion = DateTime.Now
-            };
-
-            _context.Encuesta.Add(nuevaEncuesta);
-            await _context.SaveChangesAsync();
-
-            foreach (var preguntaTexto in model.Preguntas)
-            {
-                var nuevaPregunta = new Pregunta
-                {
-                    id_encuesta = nuevaEncuesta.id_encuesta,
-                    texto_pregunta = preguntaTexto
-                };
-                _context.Pregunta.Add(nuevaPregunta);
-            }
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
             try
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateException)
-            {
-                return StatusCode(500, "Error al crear la encuesta.");
-            }
+                // Crear la encuesta
+                var nuevaEncuesta = new Encuesta
+                {
+                    titulo = model.Titulo,
+                    fecha_creacion = DateTime.Now
+                };
 
-            return CreatedAtAction(nameof(CrearEncuesta), new { id = nuevaEncuesta.id_encuesta }, nuevaEncuesta);
+                _context.Encuesta.Add(nuevaEncuesta);
+                await _context.SaveChangesAsync();
+
+                // Insertar preguntas
+                foreach (var pregunta in model.Preguntas)
+                {
+                    var nuevaPregunta = new Pregunta
+                    {
+                        id_encuesta = nuevaEncuesta.id_encuesta,
+                        texto_pregunta = pregunta.TextoPregunta
+                    };
+
+                    _context.Pregunta.Add(nuevaPregunta);
+                    await _context.SaveChangesAsync();
+
+                    // Insertar opciones para cada pregunta
+                    foreach (var opcion in pregunta.Opciones)
+                    {
+                        var nuevaOpcion = new Opcion
+                        {
+                            id_pregunta = nuevaPregunta.id_pregunta,
+                            texto_opcion = opcion.Texto,
+                            valor_numero = opcion.Valor
+                        };
+
+                        _context.Opcion.Add(nuevaOpcion);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return CreatedAtAction(nameof(CrearEncuesta), new { id = nuevaEncuesta.id_encuesta }, nuevaEncuesta);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, $"Error al crear la encuesta: {ex.Message}");
+            }
         }
 
-        [HttpDelete("EliminarPreguntas/{id}")]
-        public async Task<IActionResult> EliminarPreguntas(int id)
+        [HttpDelete("EliminarOpciones/{id_encuesta}")]
+        public async Task<IActionResult> EliminarOpciones(int id_encuesta)
+        {
+            // Buscar las opciones asociadas a la encuesta
+            var opciones = await _context.Opcion
+                .Where(o => _context.Pregunta.Any(p => p.id_encuesta == id_encuesta && p.id_pregunta == o.id_pregunta))
+                .ToListAsync();
+
+            if (opciones.Count == 0)
+            {
+                return NotFound("No se encontraron opciones para la encuesta proporcionada.");
+            }
+
+            using (var transaction = await _context.Database.BeginTransactionAsync())
+            {
+                try
+                {
+                    // Eliminar las opciones asociadas
+                    _context.Opcion.RemoveRange(opciones);
+
+                    // Guardar los cambios en la base de datos
+                    await _context.SaveChangesAsync();
+
+                    // Confirmar la transacción
+                    await transaction.CommitAsync();
+                }
+                catch (DbUpdateException ex)
+                {
+                    // Deshacer la transacción en caso de error
+                    await transaction.RollbackAsync();
+                    // Manejo de errores
+                    return StatusCode(500, "Error al eliminar las opciones: " + ex.Message);
+                }
+            }
+
+            return Ok("Opciones eliminadas con éxito.");
+        }
+
+
+
+        [HttpDelete("EliminarPreguntas/{id_encuesta}")]
+        public async Task<IActionResult> EliminarPreguntas(int id_encuesta)
         {
             // Buscar las preguntas asociadas a la encuesta
             var preguntas = await _context.Pregunta
-                .Where(p => p.id_encuesta == id)
+                .Where(p => p.id_encuesta == id_encuesta)
                 .ToListAsync();
 
             if (preguntas.Count == 0)
@@ -341,6 +419,8 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
             return Ok("Preguntas eliminadas con éxito.");
         }
+
+        
         [HttpDelete("EliminarEncuesta/{id}")]
         public async Task<IActionResult> EliminarEncuesta(int id)
         {
@@ -353,7 +433,6 @@ namespace LudoLab_ConnectSys_Server.Controllers
                 return NotFound("Encuesta no encontrada.");
             }
 
-            // Comenzar una transacción para asegurar la consistencia
             using (var transaction = await _context.Database.BeginTransactionAsync())
             {
                 try
@@ -381,14 +460,16 @@ namespace LudoLab_ConnectSys_Server.Controllers
 
 
 
+
     }
 
     public class RespuestaDto
     {
-        public int id_estudiante { get; set; }
-        public int id_pregunta { get; set; }
-        public string texto_respuesta { get; set; }
+        public int id_estudiante { get; set; }  // ID del estudiante que está respondiendo
+        public int id_pregunta { get; set; }    // ID de la pregunta que se está respondiendo
+        public int id_opcion { get; set; }      // ID de la opción seleccionada
     }
+
     public class EstudianteNavigation
     {
         public int id_estudiante { get; set; }
@@ -401,9 +482,38 @@ namespace LudoLab_ConnectSys_Server.Controllers
         public int id_periodo { get; set; }
         public Instructor InstructorNavigation { get; set; }
     }
-    public class EncuestaConPreguntasModel 
-    {// Modelo para la solicitud de creación de encuesta
+
+    public class EncuestaConPreguntasModel
+    {
         public string Titulo { get; set; }
-        public List<string> Preguntas { get; set; }
+        public List<PreguntaModel> Preguntas { get; set; } = new List<PreguntaModel>();
     }
+
+    // Modelo para Pregunta con Opciones
+    public class PreguntaModel
+    {
+        public string TextoPregunta { get; set; }
+        public List<OpcionModel> Opciones { get; set; } = new List<OpcionModel>();
+    }
+
+    // Modelo para Opción
+    public class OpcionModel
+    {
+        public string Texto { get; set; }
+        public int Valor { get; set; }
+    }
+    public class OpcionDto
+    {
+        public int idOption { get; set; }
+        public string Texto { get; set; }
+        public int Valor { get; set; }
+    }
+
+    public class PreguntaConOpciones
+    {
+        public int IdPregunta { get; set; }
+        public string TextoPregunta { get; set; }
+        public List<OpcionDto> Opciones { get; set; }
+    }
+
 }
