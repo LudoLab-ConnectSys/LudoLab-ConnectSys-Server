@@ -60,7 +60,7 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
             var auditEntryJson = JsonConvert.SerializeObject(auditEntry, _jsonSettings);
             _logger.LogInformation($"Sending audit entry: {auditEntryJson}");
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://localhost:7500/audit")
+            var request = new HttpRequestMessage(HttpMethod.Post, "http://localhost:5500/audit")
             {
                 Content = JsonContent.Create(auditEntry)
             };
