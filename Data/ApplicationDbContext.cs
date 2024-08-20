@@ -1,17 +1,22 @@
 ﻿using DirectorioDeArchivos.Shared;
 using Microsoft.EntityFrameworkCore;
-using DirectorioDeArchivos.Shared;
-using System.Collections.Generic;
-using LudoLab_ConnectSys_Server.Services;
-using LudoLab_ConnectSys_Server.Controllers;
+using LudoLab_ConnectSys_Server.Interceptors;
 
 namespace LudoLab_ConnectSys_Server.Data
 {
     public class ApplicationDbContext : DbContext
     {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
-        {
+        private readonly AuditSaveChangesInterceptor _auditInterceptor;
 
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, AuditSaveChangesInterceptor auditInterceptor)
+            : base(options)
+        {
+            _auditInterceptor = auditInterceptor;
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.AddInterceptors(_auditInterceptor);
         }
         public DbSet<UploadResult> UploadResults => Set<UploadResult>();
         public DbSet<Certificado> Certificado { get; set; }
