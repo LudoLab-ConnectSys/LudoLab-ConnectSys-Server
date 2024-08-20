@@ -554,6 +554,29 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return Ok(gruposDelEstudiante);
         }
 
+        [HttpGet("GruposDelEstudiantePorUsuairo/{id_usuario}")]
+        public async Task<ActionResult<IEnumerable<GrupoEstudianteDTO>>> GetGruposDelEstudiantePorUsuario(int id_usuario)
+        {
+            var gruposDelEstudiante = await (from e in _context.Estudiante
+                                             join g in _context.Grupo on e.id_grupo equals g.id_grupo
+                                             join p in _context.Periodo on g.id_periodo equals p.id_periodo
+                                             join lp in _context.ListaPeriodo on p.id_ListaPeriodo equals lp.id_lista_periodo
+                                             join c in _context.Curso on p.id_curso equals c.id_curso
+                                             where e.id_usuario == id_usuario
+                                             select new GrupoEstudianteDTO
+                                             {
+                                                 IdGrupo = g.id_grupo,
+                                                 NombreGrupo = g.nombre_grupo,
+                                                 NombreCurso = c.nombre_curso,
+                                                 NombrePeriodo = lp.nombre_periodo,
+                                                 FechaInicio = p.fecha_inicio_periodo,
+                                                 FechaFin = p.fecha_fin_periodo,
+                                                 IdEstudiante = e.id_estudiante
+                                             }).ToListAsync();
+
+            return Ok(gruposDelEstudiante);
+        }
+
 
         [HttpGet("{id_grupo}/detalles-completos")]
         public async Task<ActionResult<GrupoConDetalles>> GetGrupoConEstudiantesYHorarios(int id_grupo)
@@ -620,4 +643,15 @@ namespace LudoLab_ConnectSys_Server.Controllers
             return _context.Grupo.Any(e => e.id_grupo == id_grupo);
         }
     }
+    public class GrupoEstudianteDTO
+    {
+        public int IdGrupo { get; set; }
+        public string? NombreGrupo { get; set; }
+        public string? NombreCurso { get; set; }
+        public string? NombrePeriodo { get; set; }
+        public string? FechaInicio { get; set; }
+        public string? FechaFin { get; set; }
+        public int IdEstudiante { get; set; }
+    }
+
 }
